@@ -1,0 +1,27 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Designer calendars</title>
+<style>
+:root{--bg:#fafaf7;--card:#fff;--ink:#1d2433;--mut:#667;--line:#e3e5ea;--hot:#b3261e;--pri:#a15c00;--std:#1b6e4a}
+@media(prefers-color-scheme:dark){:root{--bg:#14161b;--card:#1c1f26;--ink:#e8eaf0;--mut:#9aa3b2;--line:#2c313b;--hot:#f2827a;--pri:#f0b45c;--std:#6fcf9f}}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 -apple-system,Segoe UI,Helvetica,Arial,sans-serif}
+main{max-width:1000px;margin:0 auto;padding:20px 16px 60px}h1{font-size:22px;margin:0 0 4px}.sub{color:var(--mut);margin-bottom:16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.d{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px}.d.next{outline:2px solid var(--std)}
+.d h3{margin:0 0 6px;font-size:15px;display:flex;justify-content:space-between}.tag{font-size:11px;color:var(--std);font-weight:600}
+.b{border-left:3px solid var(--std);padding:2px 8px;margin:5px 0}.b.hot{border-color:var(--hot)}.b.priority{border-color:var(--pri)}.m{color:var(--mut);font-size:12px}.empty{color:var(--mut);font-size:13px}a{color:inherit}
+</style></head><body><main>
+<h1>Designer calendars</h1><div class="sub">One calendar per designer. The next lead goes to the highlighted designer. <a href="/queue">Front desk queue</a></div>
+<div class="grid" id="g">Loading…</div></main>
+<script>
+const key=localStorage.getItem('key')||prompt('Access key');localStorage.setItem('key',key||'');
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const when=d=>new Date(d).toLocaleString('en-IN',{timeZone:'Asia/Kolkata',weekday:'short',day:'numeric',month:'short',hour:'numeric',minute:'2-digit'});
+async function load(){
+ const r=await fetch('/api/calendar',{headers:{'x-api-key':key}}).then(r=>r.json());
+ if(r.error){document.getElementById('g').textContent='Access key not accepted. Clear it and reload.';localStorage.removeItem('key');return}
+ document.getElementById('g').innerHTML=r.designers.map((d,i)=>{
+  const bs=r.bookings.filter(b=>b.designer_id===d.id);
+  return `<div class="d ${i===r.next_designer_index?'next':''}"><h3>${esc(d.name)}<span class="tag">${i===r.next_designer_index?'NEXT LEAD':''}</span></h3>`+
+  (bs.length?bs.map(b=>`<div class="b ${esc(b.tier)}"><div>${when(b.start_at)}</div><div class="m">${esc(b.caller_name||'Lead')} · ${esc(b.area||'')} · ${esc(b.tier)}${b.status!=='new'?' · '+esc(b.status):''}</div></div>`).join(''):'<div class="empty">Free this week</div>')+'</div>'}).join('');
+}
+load();setInterval(load,10000);
+</script></body></html>

@@ -1,0 +1,23 @@
+{
+  "name": "aangan-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Backend tools for the Aangan Studio phone enquiry voice agent",
+  "scripts": {
+    "test": "node --test \"test/*.test.js\"",
+    "migrate": "node scripts/migrate.js",
+    "start": "node server.js",
+    "simulate": "node scripts/simulate.js",
+    "reset": "rm -rf .data"
+  },
+  "dependencies": {
+    "@neon/config": "^1.8.4",
+    "@neon/env": "^1.5.1",
+    "@neondatabase/serverless": "^1.0.0",
+    "hono": "^4.13.13"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.3.0"
+  }
+}

@@ -1,0 +1,61 @@
+# Current status (7 Oct 2026)
+
+- Neon project "Ai voice tool", production branch: tables created, 14 designers loaded.
+- Backend is deployed as a Neon Function: https://br-icy-scene-b4fkyldc-aangan.compute.c-6.us-east-2.aws.neon.tech/
+  (screens at /calendar and /queue; both ask for the key in `.env`).
+- Vaani agent `aangan-studio-enquiry-agent` is created, with the greeting, the full instructions and three tools
+  (`check_area`, `book_consultation`, `log_call`) switched on and saved.
+- **One manual step left:** each of the three tools has `PASTE_YOUR_AGENT_API_KEY_HERE` in its `x-api-key` header.
+  Replace it with the value of `AGENT_API_KEY` from `.env` (Vaani, Tools & Actions, open the tool, Headers, save).
+  Until then every tool call is rejected and the agent says it hit an error.
+- Not done: a phone number for inbound calls (Vaani, Telephony), the Telegram bot, the HubSpot token.
+
+To redeploy after changing code: `set -a; source .env; set +a; neon deploy --env .env`
+
+# Setup: what you need to do, in order
+
+## Already done (by me)
+- Backend code, 31 passing tests, the agent prompt, tool definitions and the test-call answer key.
+- A private `AGENT_API_KEY` generated and saved in `.env` (Vaani sends it as the `x-api-key` header).
+- A local server with a built-in test database, the designer calendar screen and the front desk queue screen.
+- A replay of your 20 phone transcripts through the tools (`npm run simulate`).
+
+## Try it now, no accounts needed
+```
+npm start            # http://localhost:3000, uses a local test database
+npm run simulate     # in a second terminal: replays the 20 calls
+npm run reset        # wipes the test database
+```
+Open `http://localhost:3000/calendar` and `http://localhost:3000/queue` (they ask for the key in `.env` once).
+
+## Still needs you
+Vaani can only call a public web address, so the three tools need to be reachable from the internet.
+
+
+
+## 1. Neon database (about 3 minutes)
+1. Sign up at neon.tech and create a project called `aangan-demo`.
+2. Copy the connection string (starts with `postgresql://`). Treat it like a password.
+3. Open `.env` in this folder and paste the string after `DATABASE_URL=`. Do not share the file.
+4. Run `set -a; source .env; set +a; npm run migrate`. It creates the tables and the 14 designers.
+
+## 2. A private key for the agent's tools
+Already generated and saved in `.env` as `AGENT_API_KEY`. Copy the same value into Vercel's environment settings and into Vaani's tool headers (`x-api-key`).
+
+## 3. Deploy so Vaani can reach it
+The Vercel connection I have could read your projects but refused to create one (it asked for re-authentication, which only you can do). Either re-authorise it, or import this folder at vercel.com/new yourself, add the same two variables (and later the Telegram and HubSpot ones) in the project's environment settings. Check `BASE_URL/api/health` returns `{"ok":true,"designers":14}`.
+
+## 4. Telegram (unlocks designer messages)
+1. In Telegram, message @BotFather, send `/newbot`, and copy the bot token.
+2. Each designer opens the bot and presses Start. Send each designer's chat id to be stored in `designers.telegram_chat_id`. For the demo, one chat id for everyone is enough.
+3. Set `TELEGRAM_BOT_TOKEN` and a made-up `TELEGRAM_WEBHOOK_SECRET`, then point the bot's webhook at `BASE_URL/api/telegram` with that secret.
+
+## 5. HubSpot free account (unlocks the founder's view)
+1. Create a Private App (Settings, Integrations, Private Apps) with scopes for contacts and deals read/write and deal property write. Copy the token into `HUBSPOT_TOKEN`.
+2. Run the property setup once (script to follow). The free plan allows 10 custom properties; we use 8.
+3. The free plan has one deal pipeline. We use the default one and map the stages: call booked, held, proposal sent, won, lost.
+
+## 6. Vaani
+Create the agent, paste in `docs/agent-prompt.md`, add the three tools from `docs/tools.json`, and set the opening line. Then run the test calls in `docs/test-calls.md`.
+
+Without steps 4 and 5 the system still works: bookings are made and saved, and the designer message and CRM record are skipped and reported as skipped.
