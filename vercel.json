@@ -1,1 +1,7 @@
-{"regions":["bom1"]}
+{
+  "regions": ["iad1"],
+  "rewrites": [
+    { "source": "/queue", "destination": "/queue.html" },
+    { "source": "/calendar", "destination": "/calendar.html" }
+  ]
+}
