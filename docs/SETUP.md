@@ -1,4 +1,13 @@
-# Current status (7 Oct 2026)
+# Current status (8 Oct 2026)
+
+- Vaani agent runs on `docs/agent-prompt.md` (lean, about 5.8k characters) plus a Vaani knowledge base built from
+  `docs/knowledge-base/aangan-knowledge.md` (services, area, timelines, pricing rules, worked examples, Hindi and Marathi lines).
+  The longer version is kept in `docs/agent-prompt-full.md` for reference.
+- Agent settings: OpenAI gpt-4o-mini, Hindi with English fallback, Sarvam speech recognition, Cartesia voice, knowledge base on.
+- The chat test panel in Vaani does not appear to run tools or knowledge-base lookups. Test those with the Audio test or a
+  real call, then read the function logs with `neon logs query --since 5m`.
+
+# Earlier status (7 Oct 2026)
 
 - Neon project "Ai voice tool", production branch: tables created, 14 designers loaded.
 - Backend is deployed as a Neon Function: https://br-icy-scene-b4fkyldc-aangan.compute.c-6.us-east-2.aws.neon.tech/
