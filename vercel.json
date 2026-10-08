@@ -3,6 +3,7 @@
   "rewrites": [
     { "source": "/queue", "destination": "/queue.html" },
     { "source": "/calendar", "destination": "/calendar.html" },
-    { "source": "/calls", "destination": "/calls.html" }
+    { "source": "/calls", "destination": "/calls.html" },
+    { "source": "/designer", "destination": "/designer.html" }
   ]
 }

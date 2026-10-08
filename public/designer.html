@@ -1,0 +1,37 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>My leads</title>
+<style>
+:root{--bg:#fafaf7;--card:#fff;--ink:#1d2433;--mut:#667;--line:#e3e5ea;--hot:#b3261e;--pri:#a15c00;--std:#1b6e4a}
+@media(prefers-color-scheme:dark){:root{--bg:#14161b;--card:#1c1f26;--ink:#e8eaf0;--mut:#9aa3b2;--line:#2c313b;--hot:#f2827a;--pri:#f0b45c;--std:#6fcf9f}}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,Segoe UI,Helvetica,Arial,sans-serif}
+main{max-width:760px;margin:0 auto;padding:20px 16px 60px}h1{font-size:22px;margin:0 0 4px}.sub{color:var(--mut);margin-bottom:14px}a{color:inherit}
+select,button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:6px 12px}button{cursor:pointer}button.on{background:var(--ink);color:var(--bg)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:10px 0}.top{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}.t{font-weight:600;font-size:16px}.m{color:var(--mut);font-size:13px}
+.pill{font-size:12px;font-weight:600;border-radius:10px;padding:1px 9px;border:1px solid currentColor}.hot{color:var(--hot)}.priority{color:var(--pri)}.standard{color:var(--std)}
+.late{color:var(--hot);font-weight:600}.row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.k{display:grid;grid-template-columns:110px 1fr;gap:2px 8px;margin-top:6px;font-size:14px}.k span:nth-child(odd){color:var(--mut)}
+</style></head><body><main>
+<h1>My leads</h1><div class="sub">Pick your name. Leads are sorted by call-by time. <a href="/calendar">Calendars</a> · <a href="/calls">All calls</a></div>
+<select id="who"></select><div id="list" style="margin-top:8px"></div></main>
+<script>
+const key=localStorage.getItem('key')||prompt('Access key');localStorage.setItem('key',key||'');
+const api=(p,o={})=>fetch(p,{...o,headers:{'x-api-key':key,'content-type':'application/json'}}).then(r=>r.json());
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const when=d=>d?new Date(d).toLocaleString('en-IN',{timeZone:'Asia/Kolkata',weekday:'short',day:'numeric',month:'short',hour:'numeric',minute:'2-digit'}):'';
+const ST=[['accepted','Accept'],['called','Called'],['held','Held'],['proposal','Proposal sent'],['won','Won'],['lost','Lost'],['not_a_fit','Not a fit']];
+let me=localStorage.getItem('designer')||'';
+async function load(){
+ const r=await api('/api/my-leads?designer='+encodeURIComponent(me));
+ if(r.error){document.getElementById('list').textContent='Access key not accepted. Clear it and reload.';localStorage.removeItem('key');return}
+ const sel=document.getElementById('who');
+ sel.innerHTML='<option value="">Choose your name</option>'+r.designers.map(d=>`<option ${d.name===me?'selected':''}>${esc(d.name)}</option>`).join('');
+ document.getElementById('list').innerHTML=!me?'<div class="m">Choose your name above.</div>':r.leads.length?r.leads.map(l=>{
+  const late=l.call_by&&new Date(l.call_by)<new Date()&&!['called','held','proposal','won','lost','not_a_fit'].includes(l.status);
+  return `<div class="card"><div class="top"><span class="t">${esc(l.caller_name||'Lead')} · ${esc(l.area||'')}</span><span><span class="pill ${esc(l.tier)}">${esc(l.tier)}</span> <span class="m">${esc(l.status)}</span></span></div>
+  <div class="${late?'late':'m'}">Call by ${when(l.call_by)}${late?' (overdue)':''} · booked ${when(l.slot_start)}</div>
+  <div class="k"><span>Phone</span><span>${l.caller_phone?`<a href="tel:${esc(l.caller_phone)}">${esc(l.caller_phone)}</a>`:'not captured'}</span><span>Project</span><span>${esc(l.project_type||'')} ${l.size_sqft?'· '+esc(l.size_sqft)+' sq ft':''}</span><span>Timeline</span><span>${esc(l.timeline_text||'not stated')}</span><span>Decides</span><span>${esc(l.decision_maker||'not confirmed')}</span><span>Budget</span><span>${esc(l.budget_note||'not stated')}</span><span>Source</span><span>${esc(l.source||'not stated')}</span><span>Why this tier</span><span>${esc(l.tier_reasons||'')}</span></div>
+  ${l.summary?`<div style="margin-top:6px">${esc(l.summary)}</div>`:''}
+  <div class="row">${ST.map(([s,t])=>`<button class="${l.status===s?'on':''}" data-id="${l.id}" data-s="${s}">${t}</button>`).join('')}</div></div>`}).join(''):'<div class="m">No leads for you yet.</div>';
+}
+document.getElementById('who').addEventListener('change',e=>{me=e.target.value;localStorage.setItem('designer',me);load()});
+document.addEventListener('click',async e=>{const b=e.target.closest('button[data-id]');if(!b)return;b.disabled=true;await api('/api/set-status',{method:'POST',body:JSON.stringify({id:Number(b.dataset.id),status:b.dataset.s})});load()});
+load();setInterval(load,20000);
+</script></body></html>
