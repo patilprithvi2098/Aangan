@@ -2,6 +2,7 @@
   "regions": ["iad1"],
   "rewrites": [
     { "source": "/queue", "destination": "/queue.html" },
-    { "source": "/calendar", "destination": "/calendar.html" }
+    { "source": "/calendar", "destination": "/calendar.html" },
+    { "source": "/calls", "destination": "/calls.html" }
   ]
 }

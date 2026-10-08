@@ -5,6 +5,7 @@ import logCall from "../api/log-call.js";
 import queue from "../api/queue.js";
 import calendar from "../api/calendar.js";
 import review from "../api/review.js";
+import calls from "../api/calls.js";
 import telegram from "../api/telegram.js";
 import health from "../api/health.js";
 import * as pages from "./pages";
@@ -38,8 +39,10 @@ app.post("/api/log-call", (c) => run(logCall, c));
 app.get("/api/queue", (c) => run(queue, c));
 app.get("/api/calendar", (c) => run(calendar, c));
 app.post("/api/review", (c) => run(review, c));
+app.get("/api/calls", (c) => run(calls, c));
 app.post("/api/telegram", (c) => run(telegram, c));
 app.get("/queue", (c) => c.html(pages.queue));
 app.get("/calendar", (c) => c.html(pages.calendar));
+app.get("/calls", (c) => c.html(pages.calls));
 
 export default app;

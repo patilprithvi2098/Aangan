@@ -26,10 +26,10 @@ if (!process.env.DATABASE_URL) {
 }
 
 const handlers = {};
-for (const name of ['health', 'check-area', 'book', 'log-call', 'queue', 'telegram', 'calendar', 'review']) {
+for (const name of ['health', 'check-area', 'book', 'log-call', 'queue', 'telegram', 'calendar', 'review', 'calls']) {
   handlers[name] = (await import(`./api/${name}.js`)).default;
 }
-const pages = { '/queue': 'queue.html', '/calendar': 'calendar.html' };
+const pages = { '/queue': 'queue.html', '/calendar': 'calendar.html', '/calls': 'calls.html' };
 
 http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');

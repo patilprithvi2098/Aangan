@@ -81,3 +81,15 @@ test('book without a call id derives one, and a retry for the same number does n
   assert.equal(b.body.repeated, true);
   assert.equal(b.body.spoken, a.body.spoken);
 });
+
+test('calls dashboard lists every outcome with totals', async () => {
+  await testDb();
+  await call('book', { call_id: 'd1', caller_name: 'A', caller_phone: '+91 90000 11111', project_type: '2BHK', area: 'Baner' });
+  await call('log-call', { call_id: 'd2', outcome: 'declined', decline_reason: 'restaurant' });
+  const handler = (await import('../api/calls.js')).default;
+  const res = fakeRes();
+  await handler({ method: 'GET', headers: { 'x-api-key': 'test-key' }, query: {} }, res);
+  assert.equal(res.body.totals.total, 2);
+  assert.equal(res.body.totals.qualified, 1);
+  assert.equal(res.body.calls.find((c) => c.call_id === 'd1').designer, 'Aryan');
+});

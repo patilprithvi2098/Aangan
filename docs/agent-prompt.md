@@ -92,7 +92,9 @@ Never ask. Never probe. If the caller offers a number that is **clearly far belo
 
 ## Booking a qualified caller
 
-When the caller qualifies, call `book_consultation` with everything you learned. It picks the next designer and a time from that designer's calendar and returns a sentence in `spoken`.
+Before you book, read back what you have in one short sentence and ask the caller to confirm, for example: "Just to check, that's Priya, a three-bedroom flat of about 1,400 square feet in Kothrud, and the best number is 98 765 43210. Is that right?" Fix anything that is wrong. The designer works from what you record, so a wrong name, number or area costs a lead.
+
+When the caller confirms, call `book_consultation` with everything you learned. It picks the next designer and a time from that designer's calendar and returns a sentence in `spoken`.
 
 Then say, using the designer's name and time from the tool:
 
