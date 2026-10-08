@@ -29,10 +29,17 @@ async function run(handler: Handler, c: any) {
     json(b: unknown) { payload = b; res.writableEnded = true; return res; },
   };
   await handler({ method: c.req.method, headers, body, query: c.req.query() }, res);
+  const fields = body && typeof body === "object" ? Object.keys(body as object).join(",") : typeof body;
+  console.log(`tool ${c.req.method} ${c.req.path} -> ${status} fields=[${fields}] key_header=${headers["x-api-key"] ? "present" : "missing"}`);
   return c.json(payload ?? { ok: true }, status);
 }
 
 const app = new Hono();
+app.use("*", async (c, next) => {
+  await next();
+  console.log(`req ${c.req.method} ${c.req.path} -> ${c.res.status} ua=${(c.req.header("user-agent") || "").slice(0, 40)}`);
+});
+app.notFound((c) => c.json({ error: "not found" }, 404));
 app.get("/", (c) => c.text("Aangan Studio agent tools"));
 app.get("/api/health", (c) => run(health, c));
 app.post("/api/check-area", (c) => run(checkArea, c));
