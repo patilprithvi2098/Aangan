@@ -20,6 +20,7 @@ export function fakeRes() {
   res.setHeader = (k, v) => { res.headers[k.toLowerCase()] = v; return res; };
   res.status = (c) => { res.statusCode = c; return res; };
   res.json = (b) => { res.body = b; res.writableEnded = true; return res; };
+  res.sendFile = (buf, type, headers) => { res.file = { buf, type, headers }; res.writableEnded = true; return res; };
   return res;
 }
 

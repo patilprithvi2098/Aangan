@@ -11,7 +11,9 @@
     "simulate": "node scripts/simulate.js",
     "reset": "rm -rf .data",
     "users": "node scripts/users.js",
-    "dev": "node server.js --local"
+    "dev": "node server.js --local",
+    "seed:demo": "node scripts/seed-demo.js",
+    "dev:demo": "node server.js --local --demo"
   },
   "dependencies": {
     "@neon/config": "^1.8.4",

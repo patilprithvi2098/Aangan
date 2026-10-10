@@ -18,5 +18,7 @@ export default route({ method: 'GET', auth: 'user' }, async (req, res) => {
   ))[0];
   if (!call || (call.designer_id !== null && call.designer_id !== req.user.designer_id)) return res.status(404).json({ error: 'not found' });
   const events = await db.query('select status, note, created_at from status_events where call_id = $1 order by created_at, id', [id]);
-  return { call, events };
+  const messages = await db.query('select id, channel, sender, to_name, to_address, body, status, note, created_at from messages where call_id = $1 order by created_at, id', [id]);
+  const project = (await db.query('select id, name from projects where call_id = $1 and designer_id = $2', [id, req.user.designer_id]))[0] || null;
+  return { call, events, messages, project };
 });

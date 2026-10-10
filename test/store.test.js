@@ -72,3 +72,17 @@ test('status updates are recorded', async () => {
   const rows = await db.query('select status from calls where id = $1', [r.call_row_id]);
   assert.equal(rows[0].status, 'held');
 });
+
+test('a long booking, like a two hour site visit, blocks every slot it covers', async () => {
+  const db = await testDb();
+  const first = await bookLead(db, lead(0), NOW);         // Aryan, next free slot
+  const start = first.slot;
+  await db.query('delete from bookings');
+  await db.query("insert into bookings (designer_id, start_at, end_at, kind, title) values (1, $1, $2, 'site_visit', 'Site visit')", [
+    start.toISOString(), new Date(start.getTime() + 2 * 3600e3).toISOString(),
+  ]);
+  await db.query('update rr_state set next_index = 0');
+  const second = await bookLead(db, lead(1), NOW);
+  assert.equal(second.designer_name, 'Aryan');
+  assert.ok(second.slot.getTime() >= start.getTime() + 2 * 3600e3, 'lands after the visit ends');
+});

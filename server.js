@@ -28,10 +28,15 @@ if (!process.env.DATABASE_URL) {
   console.log('Using Neon.');
 }
 
+if (globalThis.__testDb && process.argv.includes('--demo')) {
+  const { seedDemo } = await import('./lib/demo/seed.js');
+  console.log('Demo data:', JSON.stringify(await seedDemo(globalThis.__testDb, { designsDir: path.join(root, 'public', 'designs') })));
+}
+
 const handlers = {};
 for (const name of [
   'health', 'check-area', 'book', 'log-call', 'call-update', 'telegram', 'login', 'logout', 'me', 'change-password',
-  'queue', 'calendar', 'review', 'call', 'my-leads', 'set-status',
+  'queue', 'calendar', 'review', 'call', 'projects', 'project', 'file', 'project-photo', 'project-design', 'project-create', 'project-update', 'event-add', 'item-delete', 'my-leads', 'set-status',
 ]) {
   handlers[name] = (await import(`./handlers/${name}.js`)).default;
 }
@@ -52,8 +57,16 @@ if (globalThis.__testDb) {
   }
 }
 
+const TYPES = { '.jpg': 'image/jpeg', '.svg': 'image/svg+xml' };
 http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
+  const asset = /^\/(photos|designs)\/([\w.-]+\.(jpg|svg))$/.exec(url.pathname);
+  if (asset) {
+    const file = path.join(root, 'public', asset[1], asset[2]);
+    if (!existsSync(file)) { res.writeHead(404); return res.end('not found'); }
+    res.writeHead(200, { 'content-type': TYPES[path.extname(file)] });
+    return res.end(readFileSync(file));
+  }
   if (pages[url.pathname]) {
     const [file, type] = pages[url.pathname];
     res.writeHead(200, { 'content-type': type, 'cache-control': 'no-store' });
@@ -66,6 +79,7 @@ http.createServer(async (req, res) => {
   try { req.body = body ? JSON.parse(body) : {}; } catch { req.body = {}; }
   req.query = Object.fromEntries(url.searchParams);
   res.status = (c) => { res.statusCode = c; return res; };
+  res.sendFile = (buf, type, headers = {}) => { res.writeHead(200, { ...headers, 'content-type': type }); res.end(buf); return res; };
   res.json = (b) => { res.setHeader('content-type', 'application/json'); res.end(JSON.stringify(b)); return res; };
   await handlers[m[1]](req, res);
 }).listen(process.env.PORT || 3000, () => console.log(`Listening on http://localhost:${process.env.PORT || 3000}`));

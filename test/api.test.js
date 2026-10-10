@@ -48,9 +48,9 @@ test('log-call tool validates the outcome', async () => {
 test('handoff message carries tier, deadline, booked time and the fields the designer needs', () => {
   const text = formatHandoff(
     { caller_name: 'Priya', area: 'Kothrud', project_type: '3BHK full home', size_sqft: 1400, timeline_text: 'by March', decision_maker: 'owner', source: 'referral', caller_phone: '+91' },
-    { tier: 'priority', tier_reasons: ['referral'], call_by: new Date(Date.UTC(2026, 9, 8, 5, 30)), slot: new Date(Date.UTC(2026, 9, 8, 6, 0)), window_missed: false },
+    { tier: 'priority', designer_name: 'Meera', tier_reasons: ['referral'], call_by: new Date(Date.UTC(2026, 9, 8, 5, 30)), slot: new Date(Date.UTC(2026, 9, 8, 6, 0)), window_missed: false },
   );
-  assert.match(text, /^PRIORITY: referral/);
+  assert.match(text, /^Chayya, front desk\. New PRIORITY lead for Meera:\nreferral/);
   assert.match(text, /Call by Thu 8 Oct, 11:00 AM/);
   assert.match(text, /Booked Thu 8 Oct, 11:30 AM/);
   assert.match(text, /Budget: not stated/);
@@ -94,4 +94,15 @@ test('a designer sees only their own leads and can mark a status from the dashbo
   assert.equal(set.body.ok, true);
   assert.equal((await request('my-leads', { method: 'GET', headers: aryan })).body.leads[0].status, 'called');
   assert.equal((await request('set-status', { headers: aryan, body: { id: mine.body.leads[0].id, status: 'bogus' } })).body.error, 'unknown status');
+});
+
+test('after a booking, Chayya saves the message to the designer and a confirmation ready to send to the caller', async () => {
+  const db = await testDb();
+  const res = await call('book', { call_id: 'ch1', caller_name: 'Priya Rao', caller_phone: '+91 90000 33333', project_type: '3BHK full home', area: 'Baner', size_sqft: 1300 });
+  assert.equal(res.body.notifications.caller_message.sent, false);
+  const rows = await db.query('select channel, sender, to_name, status, body from messages order by id');
+  assert.deepEqual(rows.map((r) => [r.channel, r.sender, r.to_name]), [['telegram', 'Chayya', 'Aryan'], ['whatsapp', 'Chayya', 'Priya Rao']]);
+  assert.match(rows[1].body, /^Namaste Priya, this is Chayya from Aangan Studio\./);
+  assert.match(rows[1].body, /Your designer Aryan will call you on /);
+  assert.equal(rows[1].status, 'not_sent');
 });

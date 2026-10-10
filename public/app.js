@@ -65,13 +65,20 @@ const CLOSED = ['won', 'lost', 'not_a_fit', 'done'];
 const NEXT = { new: ['accepted', 'Accept lead'], accepted: ['called', 'Mark called'], called: ['held', 'Consultation held'], held: ['proposal', 'Proposal sent'], proposal: ['won', 'Mark won'] };
 const OUTCOME = { qualified: ['Qualified', 'b-ok'], declined: ['Declined', 'b-err'], escalated: ['Escalated', 'b-warn'], missed: ['Missed call', ''], info_only: ['Info only', ''] };
 const TIER = { hot: ['Hot', 'b-err'], priority: ['Priority', 'b-warn'], standard: ['Standard', ''] };
+const KIND = { consultation: 'Consultation', site_visit: 'Site visit', design_review: 'Design review', client_meeting: 'Client meeting', vendor: 'Showroom visit', measurement: 'Measurement', handover: 'Handover' };
+const kindBadge = (k) => `<span class="b kc-${k}">${esc(KIND[k] || k)}</span>`;
+const STAGES = ['design', 'approvals', 'execution', 'finishing', 'handover'];
+const STAGE_LABEL = { design: 'Design', approvals: 'Approvals', execution: 'Execution', finishing: 'Finishing', handover: 'Handover' };
+const range = (a, b) => `${clock(a)} – ${clock(b)}`;
+const lakh = (v) => `₹${Number(v).toFixed(Number(v) % 1 ? 1 : 0)} lakh`;
+const dayLabel = (ms) => { const t = istMidnight(Date.now()), d = istMidnight(ms); return d === t ? 'Today' : d === t + DAY ? 'Tomorrow' : d === t - DAY ? 'Yesterday' : day(ms); };
 const badge = (text, cls = '') => `<span class="b ${cls}">${esc(text)}</span>`;
 const outcomeBadge = (o) => (OUTCOME[o] ? badge(OUTCOME[o][0], OUTCOME[o][1]) : '');
 const tierBadge = (t) => (TIER[t] ? badge(TIER[t][0], TIER[t][1]) : '');
 const statusBadge = (s) => badge(STATUS[s] || s, CLOSED.includes(s) ? (s === 'won' ? 'b-ok' : '') : 'b-info');
 
 /* ---------- state, api, toast ---------- */
-const S = { me: null, current: null, route: null, cal: null, rtab: 'details', timer: null, callTab: 'leads' };
+const S = { me: null, current: null, route: null, cal: null, rtab: 'details', ptab: 'overview', timer: null, callTab: 'leads' };
 
 async function api(path, body, { quiet = false, method } = {}) {
   const res = await fetch(`/api/${path}`, {
@@ -153,7 +160,7 @@ async function submitPassword(form) {
 
 /* ---------- shell ---------- */
 function tabsFor() {
-  return [['leads', 'My leads', 'phone'], ['attention', 'Needs attention', 'warning'], ['calendar', 'Calendar', 'calendar']];
+  return [['leads', 'My leads', 'phone'], ['projects', 'My projects', 'home'], ['attention', 'Needs attention', 'warning'], ['calendar', 'Calendar', 'calendar']];
 }
 function showShell() {
   const me = S.me;
@@ -173,7 +180,7 @@ function showShell() {
 }
 function markTab() {
   const name = S.route.name;
-  const on = name === 'call' ? S.callTab : name;
+  const on = name === 'call' ? S.callTab : name === 'project' ? 'projects' : name;
   $$('.tab').forEach((t) => t.classList.toggle('on', t.dataset.tab === on));
 }
 function setBadge(key, n) {
@@ -190,11 +197,12 @@ async function route() {
   if (!S.me || S.me.must_change) return;
   if (!$('#view')) showShell();
   const { name, arg } = parseHash();
-  if (!['leads', 'attention', 'call', 'calendar'].includes(name)) { location.hash = '#/leads'; return; }
+  if (!['leads', 'projects', 'project', 'attention', 'call', 'calendar'].includes(name)) { location.hash = '#/leads'; return; }
   S.route = { name, arg };
   if (name === 'call') S.rtab = 'details';
+  if (name === 'project') S.ptab = 'overview';
   markTab();
-  const views = { leads: vLeads, attention: vAttention, call: () => vCall(arg), calendar: vCalendar };
+  const views = { leads: vLeads, projects: vProjects, project: () => vProject(arg), attention: vAttention, call: () => vCall(arg), calendar: vCalendar };
   S.current = views[name];
   $('#view').innerHTML = '<div class="card"><div class="skel"></div><div class="skel" style="width:60%"></div><div class="skel" style="width:80%"></div></div>';
   window.scrollTo(0, 0);
@@ -281,13 +289,15 @@ function pathHtml(c) {
   return `<ol class="path ${closed ? 'closed' : ''}" aria-label="Lead status">${PATH.map((p, i) => `<li class="${!closed && i < idx ? 'done' : !closed && i === idx ? 'cur' : ''}"><button data-act="status" data-id="${c.id}" data-status="${p}" ${closed ? 'disabled' : ''}>${!closed && i < idx ? ic('check') : ''}${STATUS[p]}</button></li>`).join('')}</ol>`;
 }
 function drawCall() {
-  const { call: c, events } = S.callData;
+  const { call: c, events, messages = [], project = null } = S.callData;
   const now = Date.now();
   const back = `#/${S.callTab}`;
   const qualified = c.outcome === 'qualified';
   const open = !CLOSED.includes(c.status);
   const actions = [
     `<a class="btn" href="${back}">${ic('back')} Back</a>`,
+    project ? `<a class="btn" href="#/project/${project.id}">Open project</a>` : '',
+    !project && qualified && c.status === 'won' ? `<button class="btn brand" data-act="make-project" data-id="${c.id}" data-name="${esc(c.caller_name || 'Customer')}">Start project</button>` : '',
     c.caller_phone ? `<a class="btn brand" href="tel:${tel(c.caller_phone)}">${ic('phone')} Call ${esc(c.caller_phone)}</a>` : '',
     qualified && open ? `<button class="btn" data-act="status" data-id="${c.id}" data-status="not_a_fit">Not a fit</button><button class="btn danger" data-act="status" data-id="${c.id}" data-status="lost">Mark lost</button>` : '',
     c.outcome === 'declined' ? `<button class="btn danger" data-act="reverse" data-id="${c.id}" data-name="${esc(c.caller_name || 'this caller')}">Wrong decline, reverse</button>${c.reviewed ? '' : `<button class="btn" data-act="reviewed" data-id="${c.id}">Looks right</button>`}` : '',
@@ -300,16 +310,20 @@ function drawCall() {
       : c.outcome === 'qualified' && c.window_missed && open
         ? `<div class="banner warn">${ic('warning')}<div class="grow"><strong>No designer slot was free inside the call-by window.</strong> The earliest slot was booked instead. Call this lead as soon as you can.</div></div>`
         : '';
-  const tabs = [['details', 'Details'], ['transcript', 'Transcript and recording'], ['activity', `Activity (${events.length})`]];
+  const tabs = [['details', 'Details'], ['transcript', 'Transcript and recording'], ['activity', `Activity (${events.length + messages.length + 1})`]];
   let body;
   if (S.rtab === 'transcript') {
     const turns = c.transcript ? parseTranscript(c.transcript) : [];
     body = `${c.recording_url && /^https:\/\//i.test(c.recording_url) ? `<div style="margin-bottom:16px"><div class="l muted small">Recording${c.duration_sec ? ` · ${Math.floor(c.duration_sec / 60)}m ${c.duration_sec % 60}s` : ''}</div><audio controls preload="none" src="${esc(c.recording_url)}"></audio></div>` : ''}
       ${turns.length ? `<div class="bubbles">${turns.map((t) => `<div class="bub ${t.who}"><div class="who">${t.who === 'caller' ? 'Caller' : 'Agent'}</div>${esc(t.text)}</div>`).join('')}</div>` : `<div class="banner info">${ic('doc')}<div class="grow">${c.recording_url ? 'No transcript has been attached to this call yet.' : 'The transcript and recording have not been attached to this call yet.'} The full conversation is always in Vaani under Conversations, History.</div><a class="btn sm" href="https://app.vaanivoice.ai/conversations/history" target="_blank" rel="noopener">Open Vaani history</a></div>`}`;
   } else if (S.rtab === 'activity') {
-    const items = [...events].reverse().map((e) => [STATUS[e.status] || e.status.replace('_', ' '), `${when(e.created_at)}${e.note ? ` · ${e.note}` : ''}`]);
-    items.push(['Call received', when(c.created_at)]);
-    body = `<ul class="timeline">${items.map(([t, m]) => `<li><div class="strong">${esc(t)}</div><div class="muted small">${esc(m)}</div></li>`).join('')}</ul>`;
+    const waLink = (m) => { const d = String(m.to_address || '').replace(/\D/g, ''); const num = d.length === 10 ? `91${d}` : d; return `https://wa.me/${num}?text=${encodeURIComponent(m.body)}`; };
+    const items = [
+      ...events.map((e) => ({ ms: Date.parse(e.created_at), title: STATUS[e.status] || e.status.replace('_', ' '), meta: `${when(e.created_at)}${e.note ? ` · ${e.note}` : ''}` })),
+      ...messages.map((m) => ({ ms: Date.parse(m.created_at), title: `Chayya → ${m.to_name || ''} · ${m.channel === 'whatsapp' ? 'WhatsApp' : m.channel === 'telegram' ? 'Telegram' : 'SMS'}${m.status === 'not_sent' ? ' · not sent yet' : ''}`, meta: when(m.created_at), quote: m.body, wa: m.status === 'not_sent' && m.channel === 'whatsapp' && m.to_address ? waLink(m) : '' })),
+      { ms: Date.parse(c.created_at), title: 'Call received', meta: when(c.created_at) },
+    ].sort((x, y) => y.ms - x.ms);
+    body = `<ul class="timeline">${items.map((i) => `<li><div class="strong">${esc(i.title)}</div><div class="muted small">${esc(i.meta)}</div>${i.quote ? `<div class="quote">${esc(i.quote)}</div>` : ''}${i.wa ? `<a class="btn sm" href="${esc(i.wa)}" target="_blank" rel="noopener" style="margin-top:6px">Send on WhatsApp</a>` : ''}</li>`).join('')}</ul>`;
   } else {
     const f = (l, v, full) => `<div class="${full ? 'full' : ''}"><div class="l">${l}</div><div>${v ? esc(v) : '<span class="muted">Not given</span>'}</div></div>`;
     body = `<div class="dl">${f('Project', c.project_type)}${f('Size', c.size_sqft ? `${c.size_sqft} sq ft` : '')}${f('Area', c.area)}${f('Timeline', c.timeline_text)}${f('Decision-maker', c.decision_maker)}${f('Heard about us', c.source)}${f('Budget', c.budget_note)}${f('Why this urgency', c.tier_reasons)}${f('Summary for the designer', c.summary, true)}</div>`;
@@ -328,8 +342,13 @@ function drawCall() {
 
 /* ---------- designer: my leads ---------- */
 async function vLeads() {
-  const { leads } = await api('my-leads');
+  const [{ leads }, cal] = await Promise.all([api('my-leads'), api('calendar')]);
   const now = Date.now();
+  const upcoming = cal.bookings.filter((b) => !b.busy && Date.parse(b.end_at) > now).slice(0, 6);
+  const nextUp = `<section class="card"><div class="card-h"><h2>Next up</h2><span class="hint right">Your calendar, soonest first</span></div>${upcoming.length ? upcoming.map((e) => {
+    const to = e.project_id ? `#/project/${e.project_id}` : e.call_row_id ? `#/call/${e.call_row_id}` : '';
+    return `<div class="item ${to ? 'click' : ''}" ${to ? `data-act="goto" data-to="${to}"` : ''}><div class="when"><div class="strong">${dayLabel(Date.parse(e.start_at))}</div><div class="muted small">${esc(range(e.start_at, e.end_at))}</div></div><div class="grow"><div class="t">${esc(e.title)}</div><div class="m">${kindBadge(e.kind)} ${esc(e.location || '')}</div></div></div>`;
+  }).join('') : emptyState('Nothing booked yet.')}</section>`;
   const needs = leads.filter((l) => ['new', 'accepted'].includes(l.status));
   const prog = leads.filter((l) => ['called', 'held', 'proposal'].includes(l.status));
   const closed = leads.filter((l) => CLOSED.includes(l.status));
@@ -349,9 +368,94 @@ async function vLeads() {
   const sec = (title, hint, rows, empty) => `<section class="card"><div class="card-h"><h2>${title}</h2><span class="count ${rows.length ? '' : 'zero'}" ${rows.length && title === 'In progress' ? 'style="background:var(--brand)"' : ''}>${rows.length}</span><span class="hint right">${hint}</span></div>${rows.length ? rows.map(item).join('') : emptyState(empty)}</section>`;
   render(`${pageHead({ icon: 'phone', color: '#f88962', kicker: `${day(now)} · My leads`, title: `${greeting()}, ${esc(S.me.name.split(' ')[0])}`, actions: refreshBtn })}
     ${kpis([['Call now', callNow, callNow ? 'bad' : 'good'], ['Waiting for a first call', needs.length], ['In progress', prog.length], ['Consultations this week', week], ['Won', leads.filter((l) => l.status === 'won').length, 'good']])}
+    ${nextUp}
     ${sec('Needs a call', 'Soonest deadline first', needs, 'No new leads waiting. Nice work.')}
     ${sec('In progress', 'Called, consultation, proposal', prog, 'Nothing in progress.')}
     ${closed.length ? sec('Closed', 'Won, lost or not a fit', closed, '') : ''}`);
+}
+
+/* ---------- my projects ---------- */
+async function vProjects() {
+  const { projects, won_without_project: wins = [] } = await api('projects');
+  const now = Date.now();
+  const soon = projects.filter((p) => p.stage === 'handover' || (Date.parse(p.target_date) - now) / DAY <= 14).length;
+  const total = projects.reduce((sum, p) => sum + Number(p.value_lakh || 0), 0);
+  render(`${pageHead({ icon: 'home', color: '#0176d3', kicker: 'My projects', title: 'Ongoing projects', actions: refreshBtn })}
+    ${kpis([['Ongoing projects', projects.length], ['In execution', projects.filter((p) => p.stage === 'execution').length], ['Finishing or handover', projects.filter((p) => ['finishing', 'handover'].includes(p.stage)).length], ['Due in 14 days', soon, soon ? 'warn' : 'good'], ['Value in progress', lakh(total)]])}
+    ${wins.length ? `<section class="card"><div class="card-h"><h2>Won leads waiting for a project</h2><span class="count">${wins.length}</span><span class="hint right">Start the project to add designs, photos and visits</span></div>${wins.map((w) => `<div class="item"><div class="grow"><div class="t">${esc(w.caller_name || 'Customer')}</div><div class="m">${esc(w.area || '')} · ${esc(w.project_type || '')}${w.size_sqft ? ` · ${esc(w.size_sqft)} sq ft` : ''}</div></div><div class="side"><button class="btn sm brand" data-act="make-project" data-id="${w.id}" data-name="${esc(w.caller_name || 'Customer')}">Start project</button></div></div>`).join('')}</section>` : ''}
+    ${projects.length ? `<div class="pgrid">${projects.map((p) => {
+      const left = Math.ceil((Date.parse(p.target_date) - now) / (7 * DAY));
+      return `<article class="pcard" data-act="goto" data-to="#/project/${p.id}"><img src="${esc(p.hero_photo || '/photos/building-12826230.jpg')}" alt="" loading="lazy"><div class="pbody">
+        <div class="row wrap"><span class="strong">${esc(p.name)}</span><span class="b ${p.stage === 'handover' ? 'b-ok' : 'b-info'} right">${STAGE_LABEL[p.stage]}</span></div>
+        <div class="m muted">${esc(p.customer_name)} · ${esc(p.area)}</div><div class="m muted">${esc(p.project_type)} · ${esc(p.size_sqft)} sq ft · ${lakh(p.value_lakh)}</div>
+        <div class="progress" title="${p.progress_pct}% complete"><i style="width:${p.progress_pct}%"></i></div>
+        <div class="row small muted"><span>${p.progress_pct}% complete</span><span class="right">${left <= 0 ? 'Due now' : `Target ${day(Date.parse(p.target_date))}`}</span></div>
+        <div class="pnext small">${p.next_event ? `${ic('calendar')} <strong>${dayLabel(Date.parse(p.next_event.start_at))}, ${clock(p.next_event.start_at)}</strong> · ${esc(p.next_event.title.split(' · ')[0])}` : '<span class="muted">Nothing scheduled</span>'}</div></div></article>`;
+    }).join('')}</div>` : emptyState('No ongoing projects.')}`);
+}
+
+async function vProject(id) {
+  const d = await api(`project?id=${encodeURIComponent(id)}`);
+  S.projectData = d;
+  drawProject();
+}
+const DESIGN_STATUS = { approved: ['Approved', 'b-ok'], shared: ['Shared with customer', 'b-info'], draft: ['Draft', ''], revision: ['Revision requested', 'b-warn'] };
+const KIND_LABEL = { layout: 'Floor plan', concept: 'Concept', material_board: 'Material board', elevation: 'Elevation' };
+function drawProject() {
+  const { project: p, designs, photos, events, messages } = S.projectData;
+  const now = Date.now();
+  const idx = STAGES.indexOf(p.stage);
+  const upcoming = events.filter((e) => Date.parse(e.end_at) > now), recent = events.filter((e) => Date.parse(e.end_at) <= now).reverse().slice(0, 4);
+  const tabs = [['overview', 'Overview'], ['designs', `Designs (${designs.length})`], ['photos', `Site photos (${photos.length})`], ['messages', `Messages (${messages.length})`]];
+  const left = Math.ceil((Date.parse(p.target_date) - now) / (7 * DAY));
+  const hl = `<div class="hl">
+    <div><div class="l">Customer</div><div class="v">${esc(p.customer_name)}</div></div>
+    <div><div class="l">Phone</div><div class="v">${phoneLink(p.customer_phone)}</div></div>
+    <div><div class="l">Site</div><div class="v">${esc(p.site_address || p.area)}</div></div>
+    <div><div class="l">Scope</div><div class="v">${esc(p.project_type)}, ${esc(p.size_sqft)} sq ft</div></div>
+    <div><div class="l">Project value</div><div class="v">${lakh(p.value_lakh)}</div></div>
+    <div><div class="l">Started</div><div class="v">${day(Date.parse(p.start_date))}</div></div>
+    <div><div class="l">Target</div><div class="v">${day(Date.parse(p.target_date))} <span class="muted small">${left > 0 ? `(${left} wk)` : '(due now)'}</span></div></div>
+    <div><div class="l">Progress</div><div class="v">${p.progress_pct}%<div class="progress"><i style="width:${p.progress_pct}%"></i></div></div></div></div>`;
+  let body;
+  if (S.ptab === 'designs') {
+    const bar = `<div class="row" style="margin-bottom:12px"><button class="btn brand" data-act="up-design">${ic('doc')} Upload a design</button><span class="muted small">A plan, render, material board or PDF. Photos are shrunk automatically.</span></div>`;
+    body = bar + (designs.length ? `<div class="gal">${designs.map((g, i) => {
+      const [sl, sc] = DESIGN_STATUS[g.status] || [g.status, ''];
+      return `<figure class="gcard" data-act="lightbox" data-i="${i}" data-set="designs">${g.image_path.startsWith('/api/file') ? `<button class="x" data-act="delete-item" data-type="design" data-id="${g.id}" aria-label="Delete this design" title="Delete">&times;</button>` : ''}${g.mime === 'application/pdf' ? `<div class="pdftile">${ic('doc')}<span>PDF</span></div>` : `<img class="${/\.svg$/.test(g.image_path) ? 'contain' : ''}" src="${esc(g.image_path)}" alt="${esc(g.title)}" loading="lazy">`}<figcaption><div class="strong">${esc(g.title)}</div><div class="small muted">${KIND_LABEL[g.kind] || g.kind} · v${g.version} · ${g.shared_on ? day(Date.parse(g.shared_on)) : ''}</div>${badge(sl, sc)}</figcaption></figure>`;
+    }).join('')}</div>` : emptyState('No designs uploaded yet.'));
+  } else if (S.ptab === 'photos') {
+    const bar = `<div class="row" style="margin-bottom:12px"><button class="btn brand" data-act="up-photo">${ic('doc')} Add site photos</button><span class="muted small">On a phone this opens the camera or your gallery.</span></div>`;
+    body = bar + (photos.length ? `<div class="gal">${photos.map((g, i) => `<figure class="gcard" data-act="lightbox" data-i="${i}" data-set="photos">${g.image_path.startsWith('/api/file') ? `<button class="x" data-act="delete-item" data-type="photo" data-id="${g.id}" aria-label="Delete this photo" title="Delete">&times;</button>` : ''}<img src="${esc(g.image_path)}" alt="${esc(g.caption)}" loading="lazy"><figcaption><div class="small">${esc(g.caption)}</div><div class="small muted">${g.taken_on ? day(Date.parse(g.taken_on)) : ''}</div></figcaption></figure>`).join('')}</div>` : emptyState('No site photos yet.'));
+  } else if (S.ptab === 'messages') {
+    body = messages.length ? `<div class="bubbles">${messages.map((m) => `<div class="bub ${m.channel === 'telegram' ? '' : 'caller'}"><div class="who">Chayya → ${esc(m.to_name || '')} · ${m.channel === 'whatsapp' ? 'WhatsApp' : m.channel === 'telegram' ? 'Telegram' : 'SMS'} · ${when(m.created_at)}</div>${esc(m.body)}</div>`).join('')}</div>` : emptyState('No messages yet.');
+  } else {
+    const row = (e) => `<div class="item"><div class="when"><div class="strong">${dayLabel(Date.parse(e.start_at))}</div><div class="muted small">${esc(range(e.start_at, e.end_at))}</div></div><div class="grow"><div class="t">${esc(e.title)}</div><div class="m">${kindBadge(e.kind)} ${esc(e.location || '')}</div></div></div>`;
+    body = `${p.summary ? `<p style="margin-top:0"><strong>Brief:</strong> ${esc(p.summary)}</p>` : ''}
+      <div class="row" style="margin:6px 0 0"><button class="btn" data-act="add-event">${ic('calendar')} Schedule a visit or meeting</button></div>
+      <h3 class="sect">Coming up</h3><div class="flush">${upcoming.length ? upcoming.map(row).join('') : '<div class="muted small" style="padding:6px 0">Nothing scheduled. Add the next visit to the calendar.</div>'}</div>
+      ${recent.length ? `<h3 class="sect">Recent</h3><div class="flush">${recent.map(row).join('')}</div>` : ''}`;
+  }
+  render(`${pageHead({ icon: 'home', color: '#0176d3', kicker: `Project · ${esc(p.code)}`, title: `${esc(p.name)} ${badge(STAGE_LABEL[p.stage], p.stage === 'handover' ? 'b-ok' : 'b-info')}`,
+    actions: `<a class="btn" href="#/projects">${ic('back')} Back</a><button class="btn" data-act="edit-project">Update project</button>${p.customer_phone ? `<a class="btn brand" href="tel:${tel(p.customer_phone)}">${ic('phone')} Call ${esc(firstName(p.customer_name))}</a>` : ''}`, extra: hl })}
+    <ol class="path" aria-label="Project stage">${STAGES.map((st, i) => `<li class="${i < idx ? 'done' : i === idx ? 'cur' : ''}"><button data-act="set-stage" data-stage="${st}" title="Move the project to ${STAGE_LABEL[st]}">${i < idx ? ic('check') : ''}${STAGE_LABEL[st]}</button></li>`).join('')}</ol>
+    <div class="card"><div class="rtabs">${tabs.map(([k, l]) => `<button class="rtab ${S.ptab === k ? 'on' : ''}" data-act="ptab" data-t="${k}">${l}</button>`).join('')}</div><div class="card-b">${body}</div></div>`);
+}
+function firstName(n) { return String(n || '').trim().split(/\s+/)[0] || ''; }
+
+function lightbox(items, i) {
+  const el = document.createElement('div');
+  el.className = 'overlay lb';
+  const show = (k) => {
+    const it = items[(k + items.length) % items.length]; el.dataset.k = (k + items.length) % items.length;
+    el.innerHTML = `<figure><img src="${esc(it.src)}" alt="${esc(it.caption)}"><figcaption><div class="strong">${esc(it.caption)}</div><div class="small">${esc(it.meta || '')}</div></figcaption></figure>
+      <button class="btn icon lb-x" data-lb="x" aria-label="Close">&times;</button><button class="btn icon lb-p" data-lb="p" aria-label="Previous">${ic('left')}</button><button class="btn icon lb-n" data-lb="n" aria-label="Next">${ic('right')}</button>`;
+  };
+  const close = () => { el.remove(); document.removeEventListener('keydown', onKey); };
+  const onKey = (e) => { if (e.key === 'Escape') close(); if (e.key === 'ArrowRight') show(Number(el.dataset.k) + 1); if (e.key === 'ArrowLeft') show(Number(el.dataset.k) - 1); };
+  el.addEventListener('click', (e) => { const b = e.target.closest('[data-lb]'); if (b?.dataset.lb === 'n') return show(Number(el.dataset.k) + 1); if (b?.dataset.lb === 'p') return show(Number(el.dataset.k) - 1); if (!e.target.closest('figure img') || b) close(); });
+  document.addEventListener('keydown', onKey);
+  show(i); document.body.append(el);
 }
 
 /* ---------- calendar ---------- */
@@ -374,13 +478,25 @@ function slotsFor(data, dayMs) {
 function drawCalendar() {
   const c = S.cal, data = c.data;
   if (!data || S.route.name !== 'calendar') return;
-  const now = Date.now(), today = istMidnight(now);
+  const now = Date.now(), today = istMidnight(now), slotMs = data.slot_minutes * MIN;
   c.dayMs = Math.min(Math.max(c.dayMs, today - DAY), today + 7 * DAY);
-  const book = new Map(data.bookings.map((b) => [`${b.designer_id}|${Date.parse(b.start_at)}`, b]));
-  const cellFor = (b, slot) => {
-    if (!b) return `<div class="slot ${slot.ms + data.slot_minutes * MIN < now ? 'past' : ''} ${slot.ms <= now && now < slot.ms + data.slot_minutes * MIN ? 'now' : ''}"></div>`;
-    if (b.busy) return '<div class="bk busy"><div class="nm">Busy</div></div>';
-    return `<div class="bk ${b.tier || ''}" data-act="open" data-id="${b.call_row_id}" title="${esc(b.caller_name || '')}"><div class="nm">${esc(b.caller_name || 'Lead')}</div><div class="ar">${esc(b.area || '')}</div></div>`;
+  // A two hour site visit is one block that spans four rows, so the rows it covers are left out of the grid.
+  const book = new Map(), covered = new Set();
+  for (const b of data.bookings) {
+    const st = Date.parse(b.start_at), en = Date.parse(b.end_at);
+    const span = Math.max(1, Math.round((en - st) / slotMs));
+    book.set(`${b.designer_id}|${st}`, { ...b, span, st, en });
+    for (let k = 1; k < span; k++) covered.add(`${b.designer_id}|${st + k * slotMs}`);
+  }
+  const cellFor = (designerId, start) => {
+    const key = `${designerId}|${start}`;
+    if (covered.has(key)) return '';
+    const b = book.get(key);
+    if (!b) return `<div class="slot ${start + slotMs < now ? 'past' : ''} ${start <= now && now < start + slotMs ? 'now' : ''}"></div>`;
+    const span = b.span > 1 ? ` style="grid-row:span ${b.span}"` : '';
+    if (b.busy) return `<div class="bk busy"${span}><div class="nm">Busy</div></div>`;
+    const to = b.project_id ? `#/project/${b.project_id}` : b.call_row_id ? `#/call/${b.call_row_id}` : '';
+    return `<div class="bk k-${b.kind} ${b.kind === 'consultation' ? b.tier || '' : ''}"${span} ${to ? `data-act="goto" data-to="${to}"` : ''} title="${esc(b.title)}"><div class="nm">${esc(b.title)}</div>${b.span > 1 ? `<div class="ar">${esc(range(b.st, b.en))}</div>` : ''}<div class="ar">${esc(b.location || b.area || '')}</div></div>`;
   };
   let grid = '', cols = 0, title = '';
   if (c.mode === 'day') {
@@ -389,8 +505,8 @@ function drawCalendar() {
     if (!slots) grid = '<div class="empty">The studio is closed on Sundays, so there are no slots.</div>';
     else {
       cols = data.designers.length;
-      grid = `<div class="cal" style="grid-template-columns:76px repeat(${cols},minmax(112px,1fr))"><div class="hd tm corner"></div>${data.designers.map((d) => `<div class="hd ${d.id === S.me.designer_id ? 'me' : ''}">${esc(d.name)}${d.id === S.me.designer_id ? '&nbsp;(you)' : ''}</div>`).join('')}
-        ${slots.map((s) => `<div class="tm">${hhmm(s.min)}</div>${data.designers.map((d) => cellFor(book.get(`${d.id}|${s.ms}`), s)).join('')}`).join('')}</div>`;
+      grid = `<div class="cal" style="grid-template-columns:76px repeat(${cols},minmax(132px,1fr))"><div class="hd tm corner"></div>${data.designers.map((d) => `<div class="hd ${d.id === S.me.designer_id ? 'me' : ''}">${esc(d.name)}${d.id === S.me.designer_id ? '&nbsp;(you)' : ''}</div>`).join('')}
+        ${slots.map((sl) => `<div class="tm">${hhmm(sl.min)}</div>${data.designers.map((d) => cellFor(d.id, sl.ms)).join('')}`).join('')}</div>`;
     }
   } else {
     const wd = ist(c.dayMs + 12 * HOUR).wd;
@@ -400,19 +516,54 @@ function drawCalendar() {
     title = `${esc(d?.name || '')}, week of ${day(monday + 6 * HOUR)}`;
     const ref = slotsFor(data, days[0]) || [];
     cols = days.length;
-    grid = `<div class="cal" style="grid-template-columns:76px repeat(${cols},minmax(112px,1fr))"><div class="hd tm corner"></div>${days.map((m) => `<div class="hd ${m === today ? 'me' : ''}">${day(m + 6 * HOUR)}</div>`).join('')}
-      ${ref.map((s) => `<div class="tm">${hhmm(s.min)}</div>${days.map((m) => cellFor(book.get(`${d.id}|${m + s.min * MIN}`), { ms: m + s.min * MIN })).join('')}`).join('')}</div>`;
+    grid = `<div class="cal" style="grid-template-columns:76px repeat(${cols},minmax(132px,1fr))"><div class="hd tm corner"></div>${days.map((m) => `<div class="hd ${m === today ? 'me' : ''}">${day(m + 6 * HOUR)}</div>`).join('')}
+      ${ref.map((sl) => `<div class="tm">${hhmm(sl.min)}</div>${days.map((m) => cellFor(d.id, m + sl.min * MIN)).join('')}`).join('')}</div>`;
   }
-  render(`${pageHead({ icon: 'calendar', color: '#e56798', kicker: 'Calendar', title: 'Designer calendars', actions: `${data.next_designer ? `<span class="b b-info" title="The next qualified lead goes to this designer if they have a free slot">Next in rotation: ${esc(data.next_designer)}</span>` : ''}${refreshBtn}` })}
+  const legend = ['consultation', 'site_visit', 'design_review', 'client_meeting', 'vendor', 'handover'].map((k) => `<span><i class="kc-${k}"></i>${KIND[k]}</span>`).join('');
+  render(`${pageHead({ icon: 'calendar', color: '#e56798', kicker: 'Calendar', title: 'Designer calendars', actions: refreshBtn })}
     <div class="card"><div class="toolbar">
       <div class="row"><button class="btn icon" data-act="cal-prev" aria-label="Previous">${ic('left')}</button><button class="btn" data-act="cal-today">Today</button><button class="btn icon" data-act="cal-next" aria-label="Next">${ic('right')}</button></div>
       <strong>${title}</strong>
       <div class="chips"><button class="chip ${c.mode === 'day' ? 'on' : ''}" data-act="cal-mode" data-m="day">Day, all designers</button><button class="chip ${c.mode === 'week' ? 'on' : ''}" data-act="cal-mode" data-m="week">Week, one designer</button></div>
       ${c.mode === 'week' ? `<select class="field" id="cal-designer" aria-label="Designer">${data.designers.map((d) => `<option value="${d.id}" ${d.id === c.designerId ? 'selected' : ''}>${esc(d.name)}${d.id === S.me.designer_id ? ' (you)' : ''}</option>`).join('')}</select>` : ''}
-      <div class="legend right"><span><i style="background:#fde8e6;border-left:3px solid #ba0517"></i>Hot</span><span><i style="background:#fef0cd;border-left:3px solid #fe9339"></i>Priority</span><span><i style="background:#eaf5fe;border-left:3px solid #0176d3"></i>Standard</span><span><i style="background:#ecebea"></i>Busy</span></div>
+      <div class="legend right">${legend}<span><i style="background:#ecebea"></i>Busy</span></div>
     </div>${grid}</div>
-    <p class="muted small">Times are India time. Slots are 30 minutes, ${S.me.role === 'designer' ? 'and you see other designers only as busy' : 'booked by the agent in rotation'}. Showing today and the next seven days.</p>`);
+    <p class="muted small">Times are India time. New enquiries are booked into free 30 minute slots by Chayya, in rotation, and never on top of a visit or meeting. You see other designers only as busy. Showing yesterday and the next seven days.</p>`);
 }
+
+/* ---------- uploads ---------- */
+const todayIST = () => new Date(Date.now() + 330 * MIN).toISOString().slice(0, 10);
+const nextWorkingDay = () => { let t = Date.now() + DAY; while (ist(t).wd === 0) t += DAY; return new Date(t + 330 * MIN).toISOString().slice(0, 10); };
+const selectHtml = (id, options, selected) => `<select class="field" id="${id}" style="width:100%">${options.map(([v, l]) => `<option value="${esc(v)}" ${v === selected ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
+const lbl = (text, html, id) => `<label class="lbl" ${id ? `for="${id}"` : ''}>${esc(text)}</label>${html}`;
+
+// Phone photos are huge, so shrink to 1600 px and re-encode before sending. PDFs go as they are.
+function readFileForUpload(file) {
+  return new Promise((resolve, reject) => {
+    if (file.type === 'application/pdf') {
+      if (file.size > 2.5 * 1024 * 1024) return reject(new Error(`${file.name} is over 2.5 MB. Shrink the PDF first.`));
+      const r = new FileReader();
+      r.onload = () => resolve({ data: String(r.result).split(',')[1], mime: 'application/pdf', name: file.name });
+      r.onerror = () => reject(new Error('Could not read the file.'));
+      return r.readAsDataURL(file);
+    }
+    if (!/^image\//.test(file.type)) return reject(new Error(`${file.name} is not an image.`));
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, 1600 / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale);
+      const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      resolve({ data: c.toDataURL('image/jpeg', 0.82).split(',')[1], mime: 'image/jpeg', name: file.name.replace(/\.\w+$/, '') + '.jpg' });
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error(`${file.name} could not be opened as an image.`)); };
+    img.src = url;
+  });
+}
+const reloadProject = () => run(true);
+const STAGE_CAPTION = { site_check: 'Site check', civil: 'Civil work in progress', electrical: 'Electrical and plumbing work', ceiling: 'False ceiling work', tiling: 'Flooring and tiling', carpentry: 'Carpentry work', painting: 'Painting', finishing: 'Finishing work', handover: 'Handover', other: 'Site photo' };
 
 /* ---------- modal ---------- */
 function modal({ title, body, confirm, danger, onConfirm, hideCancel }) {
@@ -446,6 +597,16 @@ async function guard(el, fn) {
 }
 const ACTIONS = {
   open: (el) => { location.hash = `#/call/${el.dataset.id}`; },
+  goto: (el) => { location.hash = el.dataset.to; },
+  ptab: (el) => { S.ptab = el.dataset.t; drawProject(); },
+  lightbox: (el) => {
+    const d = S.projectData;
+    if (el.dataset.set === 'designs' && d.designs[Number(el.dataset.i)].mime === 'application/pdf') { window.open(d.designs[Number(el.dataset.i)].image_path, '_blank', 'noopener'); return; }
+    const items = el.dataset.set === 'designs'
+      ? d.designs.map((g) => ({ src: g.image_path, caption: g.title, meta: `${KIND_LABEL[g.kind] || g.kind} · version ${g.version} · ${(DESIGN_STATUS[g.status] || [g.status])[0]}` }))
+      : d.photos.map((g) => ({ src: g.image_path, caption: g.caption, meta: g.taken_on ? day(Date.parse(g.taken_on)) : '' }));
+    lightbox(items, Number(el.dataset.i));
+  },
   refresh: () => run(true).then(() => { const u = $('#updated'); if (u) u.textContent = 'Updated just now'; }),
   logout: async () => { await api('logout', {}, { quiet: true }).catch(() => {}); S.me = null; showLogin(); },
   chpw: () => {
@@ -479,6 +640,91 @@ const ACTIONS = {
   'cal-next': () => { S.cal.dayMs += S.cal.mode === 'week' ? 7 * DAY : DAY; drawCalendar(); },
   'cal-today': () => { S.cal.dayMs = istMidnight(Date.now()); drawCalendar(); },
   'cal-mode': (el) => { S.cal.mode = el.dataset.m; drawCalendar(); },
+  'set-stage': (el) => guard(el, async () => {
+    const MIN_PROGRESS = { design: 5, approvals: 30, execution: 40, finishing: 80, handover: 92 };
+    const p = S.projectData.project, stage = el.dataset.stage;
+    await api('project-update', { id: p.id, stage, progress_pct: Math.max(p.progress_pct, MIN_PROGRESS[stage]) });
+    toast(`Project moved to ${STAGE_LABEL[stage]}.`); await reloadProject();
+  }),
+  'edit-project': () => {
+    const p = S.projectData.project;
+    modal({ title: 'Update project', confirm: 'Save changes', body: `${lbl('Stage', selectHtml('ep-stage', STAGES.map((x) => [x, STAGE_LABEL[x]]), p.stage), 'ep-stage')}
+      ${lbl('Progress, percent complete', `<input class="field" id="ep-progress" type="number" min="0" max="100" step="1" value="${p.progress_pct}" style="width:100%">`, 'ep-progress')}
+      ${lbl('Target completion date', `<input class="field" id="ep-target" type="date" value="${esc(String(p.target_date || '').slice(0, 10))}" style="width:100%">`, 'ep-target')}
+      ${lbl('Project value, lakh', `<input class="field" id="ep-value" type="number" min="0" step="0.1" value="${esc(p.value_lakh ?? '')}" style="width:100%">`, 'ep-value')}
+      ${lbl('Brief and notes', `<textarea class="field" id="ep-summary" rows="4" maxlength="600">${esc(p.summary || '')}</textarea>`, 'ep-summary')}`,
+    onConfirm: async (m) => {
+      await api('project-update', { id: p.id, stage: $('#ep-stage', m).value, progress_pct: Number($('#ep-progress', m).value), target_date: $('#ep-target', m).value || undefined, value_lakh: Number($('#ep-value', m).value) || undefined, summary: $('#ep-summary', m).value });
+      toast('Project updated.'); await reloadProject();
+    } });
+  },
+  'make-project': (el) => {
+    const id = Number(el.dataset.id), surname = el.dataset.name.split(/\s+/).pop();
+    modal({ title: `Start a project for ${el.dataset.name}`, confirm: 'Create project', body: `<p style="margin-top:0" class="muted">The customer details come from the call Chayya took. You add the rest.</p>
+      ${lbl('Project name', `<input class="field" id="np-name" value="${esc(surname)} residence" maxlength="100" style="width:100%">`, 'np-name')}
+      ${lbl('Site address', '<input class="field" id="np-site" placeholder="Flat, wing, society, area" maxlength="200" style="width:100%">', 'np-site')}
+      ${lbl('Project value, lakh', '<input class="field" id="np-value" type="number" min="0" step="0.1" placeholder="e.g. 12.5" style="width:100%">', 'np-value')}
+      ${lbl('Start date', `<input class="field" id="np-start" type="date" value="${todayIST()}" style="width:100%">`, 'np-start')}
+      ${lbl('Target completion date', '<input class="field" id="np-target" type="date" style="width:100%">', 'np-target')}`,
+    onConfirm: async (m) => {
+      const r = await api('project-create', { call_id: id, name: $('#np-name', m).value, site_address: $('#np-site', m).value, value_lakh: Number($('#np-value', m).value) || undefined, start_date: $('#np-start', m).value, target_date: $('#np-target', m).value || undefined });
+      toast('Project created.'); location.hash = `#/project/${r.project_id}`;
+    } });
+  },
+  'up-photo': () => {
+    const p = S.projectData.project;
+    const stages = [['site_check', 'Site check or measurement'], ['civil', 'Civil work'], ['electrical', 'Electrical and plumbing'], ['ceiling', 'False ceiling'], ['tiling', 'Flooring and tiling'], ['carpentry', 'Carpentry'], ['painting', 'Painting'], ['finishing', 'Finishing'], ['handover', 'Handover'], ['other', 'Other']];
+    modal({ title: 'Add site photos', confirm: 'Upload', body: `${lbl('Photos', '<input class="field" id="up-files" type="file" accept="image/*" multiple style="width:100%;height:auto;padding:8px">', 'up-files')}
+      ${lbl('Stage of work', selectHtml('up-stage', stages, 'civil'), 'up-stage')}
+      ${lbl('Caption (optional, shared by all the photos)', '<input class="field" id="up-caption" maxlength="200" placeholder="e.g. Wiring done in the living room" style="width:100%">', 'up-caption')}
+      ${lbl('Date taken', `<input class="field" id="up-date" type="date" value="${todayIST()}" style="width:100%">`, 'up-date')}`,
+    onConfirm: async (m) => {
+      const files = [...$('#up-files', m).files];
+      if (!files.length) throw new Error('Choose at least one photo.');
+      const status = $('#m-err', m);
+      for (let i = 0; i < files.length; i++) {
+        status.innerHTML = `<div class="banner info" style="margin:12px 0 0">Uploading ${i + 1} of ${files.length}…</div>`;
+        const f = await readFileForUpload(files[i]);
+        if (f.mime === 'application/pdf') throw new Error('Site photos must be images.');
+        await api('project-photo', { project_id: p.id, caption: $('#up-caption', m).value || STAGE_CAPTION[$('#up-stage', m).value], stage: $('#up-stage', m).value, taken_on: $('#up-date', m).value, ...f });
+      }
+      toast(files.length === 1 ? 'Photo added.' : `${files.length} photos added.`); await reloadProject();
+    } });
+  },
+  'up-design': () => {
+    const p = S.projectData.project;
+    modal({ title: 'Upload a design', confirm: 'Upload', body: `${lbl('File (image or PDF)', '<input class="field" id="ud-file" type="file" accept="image/*,application/pdf" style="width:100%;height:auto;padding:8px">', 'ud-file')}
+      ${lbl('Title', '<input class="field" id="ud-title" maxlength="120" placeholder="e.g. Furnished floor plan" style="width:100%">', 'ud-title')}
+      ${lbl('Type', selectHtml('ud-kind', [['layout', 'Floor plan'], ['concept', 'Concept or render'], ['material_board', 'Material board'], ['elevation', 'Elevation'], ['other', 'Other']], 'layout'), 'ud-kind')}
+      ${lbl('Status', selectHtml('ud-status', [['draft', 'Draft'], ['shared', 'Shared with the customer'], ['approved', 'Approved'], ['revision', 'Revision requested']], 'draft'), 'ud-status')}
+      <p class="muted small" style="margin-bottom:0">Uploading the same title again saves it as the next version.</p>`,
+    onConfirm: async (m) => {
+      const file = $('#ud-file', m).files[0];
+      if (!file) throw new Error('Choose a file.');
+      $('#m-err', m).innerHTML = '<div class="banner info" style="margin:12px 0 0">Uploading…</div>';
+      const f = await readFileForUpload(file);
+      await api('project-design', { project_id: p.id, title: $('#ud-title', m).value || file.name.replace(/\.\w+$/, ''), kind: $('#ud-kind', m).value, status: $('#ud-status', m).value, ...f });
+      toast('Design uploaded.'); await reloadProject();
+    } });
+  },
+  'add-event': () => {
+    const p = S.projectData.project;
+    const times = []; for (let m = 600; m <= 1110; m += 30) times.push([`${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`, hhmm(m)]);
+    modal({ title: 'Schedule a visit or meeting', confirm: 'Add to calendar', body: `${lbl('What is it?', selectHtml('ev-kind', [['site_visit', 'Site visit'], ['design_review', 'Design review'], ['client_meeting', 'Client meeting'], ['vendor', 'Showroom visit'], ['measurement', 'Measurement'], ['handover', 'Handover']], 'site_visit'), 'ev-kind')}
+      ${lbl('Date', `<input class="field" id="ev-date" type="date" value="${nextWorkingDay()}" style="width:100%">`, 'ev-date')}
+      ${lbl('Start time', selectHtml('ev-start', times, '11:00'), 'ev-start')}
+      ${lbl('Length', selectHtml('ev-len', [['30', '30 minutes'], ['60', '1 hour'], ['90', '1 hour 30 minutes'], ['120', '2 hours'], ['180', '3 hours'], ['240', '4 hours']], '120'), 'ev-len')}
+      ${lbl('Where', `<input class="field" id="ev-where" maxlength="160" value="${esc(p.site_address || '')}" style="width:100%">`, 'ev-where')}`,
+    onConfirm: async (m) => {
+      await api('event-add', { project_id: p.id, kind: $('#ev-kind', m).value, date: $('#ev-date', m).value, start: $('#ev-start', m).value, duration_min: Number($('#ev-len', m).value), location: $('#ev-where', m).value });
+      toast('Added to your calendar.'); await reloadProject();
+    } });
+  },
+  'delete-item': (el) => {
+    const type = el.dataset.type, id = Number(el.dataset.id);
+    modal({ title: `Delete this ${type}?`, confirm: 'Delete', danger: true, body: '<p style="margin:0">It is removed from the project and cannot be brought back.</p>',
+      onConfirm: async () => { await api('item-delete', { type, id }); toast('Deleted.'); await reloadProject(); } });
+  },
   copy: async (el) => { try { await navigator.clipboard.writeText(el.dataset.text); toast('Copied.'); } catch (e) { toast('Copy it by hand.', 'err'); } },
 };
 

@@ -1,3 +1,14 @@
+# Current status (10 Oct 2026, later)
+
+- **Chayya** is the studio's front desk: the voice agent on the phone, and the sender of every message after a call (Telegram to the
+  designer, WhatsApp confirmation to the caller). See `docs/how-the-data-gets-here.md` for where every piece of data comes from.
+- Dashboard (https://aangan-gold.vercel.app) now has **My projects**: customer, site address, stage and progress, designs, site
+  photos, visits and Chayya's messages. Designers create a project from a won lead, upload photos and designs (phone camera works),
+  move the stage, and schedule visits that cannot overlap anything already on their calendar.
+- Demo data: 44 ongoing projects, 30 open leads, calendars, transcripts, designs and photos for all 14 designers, Aryan the richest.
+  Flagged `is_demo`. `npm run seed:demo` recreates it, `node scripts/seed-demo.js --remove` deletes only it.
+- Photos are free Pexels stock photos (credits in `public/photos/CREDITS.md`). Drawings are generated SVG.
+
 # Current status (10 Oct 2026)
 
 - Dashboard: https://aangan-gold.vercel.app. One app, one login per designer (14). The voice agent answers the phone, so there is no front desk role.
