@@ -60,3 +60,29 @@ create table if not exists status_events (
 );
 
 create index if not exists calls_outcome_idx on calls (outcome, created_at desc);
+
+alter table calls add column if not exists recording_url text;
+
+create table if not exists users (
+  id serial primary key,
+  username text not null unique,
+  name text not null,
+  role text not null check (role in ('frontdesk','designer')),
+  designer_id int references designers(id),
+  password_hash text not null,
+  must_change boolean not null default true,
+  failed_attempts int not null default 0,
+  locked_until timestamptz,
+  active boolean not null default true,
+  last_login timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists sessions (
+  token_hash text primary key,
+  user_id int not null references users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null
+);
+
+create index if not exists sessions_user_idx on sessions (user_id)

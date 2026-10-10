@@ -1,7 +1,7 @@
 // Local server: runs the same handlers as the deployed functions, plus the two screens.
 // Uses Neon when DATABASE_URL is set, otherwise a local test database in ./.data
 import http from 'node:http';
-import { readFileSync, existsSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
@@ -13,6 +13,9 @@ if (existsSync(path.join(root, '.env'))) {
     if (m && v && !process.env[m[1]]) process.env[m[1]] = v;
   }
 }
+
+// `npm run dev` ignores the Neon address in .env and uses the throwaway local database.
+if (process.argv.includes('--local')) delete process.env.DATABASE_URL;
 
 if (!process.env.DATABASE_URL) {
   const { PGlite } = await import('@electric-sql/pglite');
@@ -26,16 +29,35 @@ if (!process.env.DATABASE_URL) {
 }
 
 const handlers = {};
-for (const name of ['health', 'check-area', 'book', 'log-call', 'queue', 'telegram', 'calendar', 'review', 'calls', 'my-leads', 'set-status']) {
+for (const name of [
+  'health', 'check-area', 'book', 'log-call', 'call-update', 'telegram', 'login', 'logout', 'me', 'change-password',
+  'queue', 'calendar', 'review', 'calls', 'call', 'my-leads', 'set-status', 'users', 'user-reset', 'user-active',
+]) {
   handlers[name] = (await import(`./handlers/${name}.js`)).default;
 }
-const pages = { '/': 'index.html', '/queue': 'queue.html', '/calendar': 'calendar.html', '/calls': 'calls.html', '/designer': 'designer.html' };
+const pages = {
+  '/': ['index.html', 'text/html; charset=utf-8'],
+  '/app.js': ['app.js', 'text/javascript; charset=utf-8'],
+  '/app.css': ['app.css', 'text/css; charset=utf-8'],
+};
+
+// With the local test database, create the logins on first start and keep the one-time passwords in .data.
+if (globalThis.__testDb) {
+  const { ensureUsers } = await import('./lib/users.js');
+  const created = await ensureUsers(globalThis.__testDb);
+  if (created.length) {
+    const file = path.join(root, '.data', 'credentials.txt');
+    writeFileSync(file, created.map((u) => `${u.username}\t${u.password}\t${u.role}`).join('\n') + '\n');
+    console.log(`Created ${created.length} logins. One-time passwords are in ${file}`);
+  }
+}
 
 http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   if (pages[url.pathname]) {
-    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-    return res.end(readFileSync(path.join(root, 'public', pages[url.pathname])));
+    const [file, type] = pages[url.pathname];
+    res.writeHead(200, { 'content-type': type, 'cache-control': 'no-store' });
+    return res.end(readFileSync(path.join(root, 'public', file)));
   }
   const m = /^\/api\/([a-z-]+)$/.exec(url.pathname);
   if (!m || !handlers[m[1]]) { res.writeHead(404); return res.end('not found'); }

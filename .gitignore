@@ -4,3 +4,4 @@ node_modules
 .data
 .neon
 .claude/
+credentials.local.txt

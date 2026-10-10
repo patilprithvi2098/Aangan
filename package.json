@@ -9,7 +9,9 @@
     "migrate": "node scripts/migrate.js",
     "start": "node server.js",
     "simulate": "node scripts/simulate.js",
-    "reset": "rm -rf .data"
+    "reset": "rm -rf .data",
+    "users": "node scripts/users.js",
+    "dev": "node server.js --local"
   },
   "dependencies": {
     "@neon/config": "^1.8.4",

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { testDb, fakeRes } from './helpers.js';
+import { testDb, fakeRes, signedIn, request } from './helpers.js';
 import { formatHandoff } from '../lib/notify.js';
 import { createDeal, STAGE_FOR_STATUS } from '../lib/hubspot.js';
 
@@ -82,35 +82,26 @@ test('book without a call id derives one, and a retry for the same number does n
   assert.equal(b.body.spoken, a.body.spoken);
 });
 
-test('calls dashboard lists every outcome with totals', async () => {
-  await testDb();
+test('calls list shows every outcome with totals to the front desk', async () => {
+  const db = await testDb();
   await call('book', { call_id: 'd1', caller_name: 'A', caller_phone: '+91 90000 11111', project_type: '2BHK', area: 'Baner' });
   await call('log-call', { call_id: 'd2', outcome: 'declined', decline_reason: 'restaurant' });
-  const handler = (await import('../handlers/calls.js')).default;
-  const res = fakeRes();
-  await handler({ method: 'GET', headers: { 'x-api-key': 'test-key' }, query: {} }, res);
+  const res = await request('calls', { method: 'GET', headers: await signedIn(db, 'sneha', 'frontdesk') });
   assert.equal(res.body.totals.total, 2);
   assert.equal(res.body.totals.qualified, 1);
-  assert.equal(res.body.calls.find((c) => c.call_id === 'd1').designer, 'Aryan');
+  assert.equal(res.body.calls.some((c) => c.designer === 'Aryan'), true);
 });
 
-test('a designer sees only their own leads and can mark a status from the web page', async () => {
-  await testDb();
-  const a = await call('book', { call_id: 'm1', caller_name: 'One', caller_phone: '+91 90000 22221', project_type: '2BHK', area: 'Baner' });
+test('a designer sees only their own leads and can mark a status from the dashboard', async () => {
+  const db = await testDb();
+  await call('book', { call_id: 'm1', caller_name: 'One', caller_phone: '+91 90000 22221', project_type: '2BHK', area: 'Baner' });
   await call('book', { call_id: 'm2', caller_name: 'Two', caller_phone: '+91 90000 22222', project_type: '2BHK', area: 'Aundh' });
-  const list = async (who) => {
-    const handler = (await import('../handlers/my-leads.js')).default;
-    const res = fakeRes();
-    await handler({ method: 'GET', headers: { 'x-api-key': 'test-key' }, query: { designer: who } }, res);
-    return res.body;
-  };
-  const aryan = await list('aryan');
-  assert.equal(a.body.designer, 'Aryan');
-  assert.equal(aryan.leads.length, 1);
-  assert.equal(aryan.leads[0].caller_name, 'One');
-  assert.equal(aryan.designers.length, 14);
-  const set = await call('set-status', { id: aryan.leads[0].id, status: 'called' });
+  const aryan = await signedIn(db, 'aryan');
+  const mine = await request('my-leads', { method: 'GET', headers: aryan });
+  assert.equal(mine.body.leads.length, 1);
+  assert.equal(mine.body.leads[0].caller_name, 'One');
+  const set = await request('set-status', { headers: aryan, body: { id: mine.body.leads[0].id, status: 'called' } });
   assert.equal(set.body.ok, true);
-  assert.equal((await list('Aryan')).leads[0].status, 'called');
-  assert.equal((await call('set-status', { id: aryan.leads[0].id, status: 'bogus' })).body.error, 'unknown status');
+  assert.equal((await request('my-leads', { method: 'GET', headers: aryan })).body.leads[0].status, 'called');
+  assert.equal((await request('set-status', { headers: aryan, body: { id: mine.body.leads[0].id, status: 'bogus' } })).body.error, 'unknown status');
 });

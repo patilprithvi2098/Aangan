@@ -4,10 +4,9 @@
   "buildCommand": null,
   "outputDirectory": "public",
   "rewrites": [
-    { "source": "/api/:path*", "destination": "https://br-icy-scene-b4fkyldc-aangan.compute.c-6.us-east-2.aws.neon.tech/api/:path*" },
-    { "source": "/queue", "destination": "/queue.html" },
-    { "source": "/calendar", "destination": "/calendar.html" },
-    { "source": "/calls", "destination": "/calls.html" },
-    { "source": "/designer", "destination": "/designer.html" }
+    {
+      "source": "/api/:path*",
+      "destination": "https://br-icy-scene-b4fkyldc-aangan.compute.c-6.us-east-2.aws.neon.tech/api/:path*"
+    }
   ]
 }
