@@ -1,0 +1,58 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Aangan enquiry desk</title>
+<style>
+:root{--bg:#fafaf7;--card:#fff;--ink:#1d2433;--mut:#667;--line:#e3e5ea;--warn:#b3261e;--ok:#1b6e4a;--amb:#a15c00}
+@media(prefers-color-scheme:dark){:root{--bg:#14161b;--card:#1c1f26;--ink:#e8eaf0;--mut:#9aa3b2;--line:#2c313b;--warn:#f2827a;--ok:#6fcf9f;--amb:#f0b45c}}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,Segoe UI,Helvetica,Arial,sans-serif}
+main{max-width:860px;margin:0 auto;padding:24px 16px 60px}h1{font-size:24px;margin:0 0 4px}.sub{color:var(--mut);margin-bottom:20px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin:0 0 20px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:13px;color:var(--mut)}.tile b{display:block;font-size:24px;color:var(--ink)}
+.tile.bad b{color:var(--warn)}.tile.good b{color:var(--ok)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:10px}
+a.card{display:block;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;text-decoration:none;color:inherit}
+a.card:hover{border-color:var(--ink)}.card .t{font-weight:600;font-size:16px}.card .who{font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em}.card .d{color:var(--mut);font-size:13px;margin-top:4px}
+.key{display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:18px}
+.key input{flex:1;min-width:180px;font:inherit;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+button{font:inherit;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:8px;padding:6px 12px;cursor:pointer}
+#status{font-size:13px;color:var(--mut)}h2{font-size:14px;color:var(--mut);margin:24px 0 8px;font-weight:600}
+</style></head><body><main>
+<h1>Aangan enquiry desk</h1>
+<div class="sub">Every phone enquiry, who is calling back, and what is waiting. Founder numbers live in HubSpot.</div>
+
+<div class="key"><span>Access key</span><input id="k" type="password" placeholder="Paste the studio access key" autocomplete="off"><button id="save">Save</button><span id="status"></span></div>
+
+<div class="tiles" id="tiles"></div>
+
+<h2>Front desk</h2>
+<div class="grid">
+ <a class="card" href="/queue"><div class="who">Front desk</div><div class="t">Work queue</div><div class="d">Escalations to call back in 15 minutes, missed calls, declined calls to review, bookings at risk.</div></a>
+ <a class="card" href="/calls"><div class="who">Front desk and designers</div><div class="t">All calls</div><div class="d">Every call with its outcome, urgency, designer, status and summary.</div></a>
+</div>
+<h2>Designers</h2>
+<div class="grid">
+ <a class="card" href="/designer"><div class="who">Designer</div><div class="t">My leads</div><div class="d">Pick your name. See your leads, call-by times, and mark each one called, held, won or lost.</div></a>
+ <a class="card" href="/calendar"><div class="who">Everyone</div><div class="t">Calendars</div><div class="d">The 14 designers' booked consultation slots, so nobody is double booked.</div></a>
+</div>
+<h2>Founder</h2>
+<div class="grid">
+ <a class="card" href="https://app.hubspot.com/" target="_blank" rel="noopener"><div class="who">Founder</div><div class="t">HubSpot dashboard</div><div class="d">Enquiries to booked to won, response time, lost reasons, revenue by source. Opens HubSpot.</div></a>
+</div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+try{ $('k').value=localStorage.getItem('key')||''; }catch(e){}
+const get=p=>fetch(p,{headers:{'x-api-key':$('k').value}}).then(r=>r.json());
+async function load(){
+ if(!$('k').value){ $('status').textContent='Enter the key to see live numbers.'; return }
+ const [c,q]=await Promise.all([get('/api/calls?limit=1'),get('/api/queue')]).catch(()=>[{error:1},{error:1}]);
+ if(c.error||q.error){ $('status').textContent='Key not accepted.'; $('tiles').innerHTML=''; return }
+ $('status').textContent='Connected.';
+ const t=c.totals, waiting=(q.escalations||[]).length+(q.callbacks||[]).length, risk=(q.lateBookings||[]).length;
+ $('tiles').innerHTML=[
+  ['Calls',t.total,''],['Booked',t.qualified,'good'],['Declined',t.declined,''],
+  ['Escalations and callbacks waiting',waiting,waiting?'bad':'good'],['Bookings at risk',risk,risk?'bad':'good']
+ ].map(([a,b,k])=>`<div class="tile ${k}">${a}<b>${b}</b></div>`).join('');
+}
+$('save').onclick=()=>{ try{ localStorage.setItem('key',$('k').value) }catch(e){} load() };
+$('k').addEventListener('keydown',e=>{ if(e.key==='Enter') $('save').click() });
+load();
+</script></body></html>

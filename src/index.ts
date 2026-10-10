@@ -1,15 +1,15 @@
 import { Hono } from "hono";
-import checkArea from "../api/check-area.js";
-import book from "../api/book.js";
-import logCall from "../api/log-call.js";
-import queue from "../api/queue.js";
-import calendar from "../api/calendar.js";
-import review from "../api/review.js";
-import calls from "../api/calls.js";
-import myLeads from "../api/my-leads.js";
-import setStatus from "../api/set-status.js";
-import telegram from "../api/telegram.js";
-import health from "../api/health.js";
+import checkArea from "../handlers/check-area.js";
+import book from "../handlers/book.js";
+import logCall from "../handlers/log-call.js";
+import queue from "../handlers/queue.js";
+import calendar from "../handlers/calendar.js";
+import review from "../handlers/review.js";
+import calls from "../handlers/calls.js";
+import myLeads from "../handlers/my-leads.js";
+import setStatus from "../handlers/set-status.js";
+import telegram from "../handlers/telegram.js";
+import health from "../handlers/health.js";
 import * as pages from "./pages";
 
 type Handler = (req: any, res: any) => Promise<unknown>;
@@ -40,7 +40,7 @@ app.use("*", async (c, next) => {
   console.log(`req ${c.req.method} ${c.req.path} -> ${c.res.status} ua=${(c.req.header("user-agent") || "").slice(0, 40)}`);
 });
 app.notFound((c) => c.json({ error: "not found" }, 404));
-app.get("/", (c) => c.text("Aangan Studio agent tools"));
+app.get("/", (c) => c.html(pages.index));
 app.get("/api/health", (c) => run(health, c));
 app.post("/api/check-area", (c) => run(checkArea, c));
 app.post("/api/book", (c) => run(book, c));

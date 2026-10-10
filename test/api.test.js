@@ -9,7 +9,7 @@ delete process.env.TELEGRAM_BOT_TOKEN;
 delete process.env.HUBSPOT_TOKEN;
 
 const call = async (mod, body, headers = { 'x-api-key': 'test-key' }, method = 'POST') => {
-  const handler = (await import(`../api/${mod}.js`)).default;
+  const handler = (await import(`../handlers/${mod}.js`)).default;
   const res = fakeRes();
   await handler({ method, headers, body, query: {} }, res);
   return res;
@@ -86,7 +86,7 @@ test('calls dashboard lists every outcome with totals', async () => {
   await testDb();
   await call('book', { call_id: 'd1', caller_name: 'A', caller_phone: '+91 90000 11111', project_type: '2BHK', area: 'Baner' });
   await call('log-call', { call_id: 'd2', outcome: 'declined', decline_reason: 'restaurant' });
-  const handler = (await import('../api/calls.js')).default;
+  const handler = (await import('../handlers/calls.js')).default;
   const res = fakeRes();
   await handler({ method: 'GET', headers: { 'x-api-key': 'test-key' }, query: {} }, res);
   assert.equal(res.body.totals.total, 2);
@@ -99,7 +99,7 @@ test('a designer sees only their own leads and can mark a status from the web pa
   const a = await call('book', { call_id: 'm1', caller_name: 'One', caller_phone: '+91 90000 22221', project_type: '2BHK', area: 'Baner' });
   await call('book', { call_id: 'm2', caller_name: 'Two', caller_phone: '+91 90000 22222', project_type: '2BHK', area: 'Aundh' });
   const list = async (who) => {
-    const handler = (await import('../api/my-leads.js')).default;
+    const handler = (await import('../handlers/my-leads.js')).default;
     const res = fakeRes();
     await handler({ method: 'GET', headers: { 'x-api-key': 'test-key' }, query: { designer: who } }, res);
     return res.body;

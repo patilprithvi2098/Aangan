@@ -10,7 +10,7 @@ Built for the MESA "AI and its Application" Case 03 (Nikhil: Unanswered Enquirie
 - `docs/test-calls.md`: answer key for the 20 phone transcripts, plus extra stress calls
 - `docs/SETUP.md`: current status and the steps still needing a person
 - `docs/class-materials/`: briefing PDF and the components map
-- `api/`, `lib/`, `src/`: the backend, deployed as a Neon Function (`neon.ts`)
+- `handlers/`, `lib/`, `src/`: the backend, deployed as a Neon Function (`neon.ts`)
 - `db/`: schema and the 14 designers
 - `public/`: front-desk queue and designer calendar screens
 - `test/`: automated tests (`npm test`)
