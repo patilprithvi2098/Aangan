@@ -1,12 +1,13 @@
 # Current status (10 Oct 2026)
 
-- Dashboard: https://aangan-gold.vercel.app. One app with a login for every person: 2 front desk, 14 designers.
-  - Front desk tabs: Work queue, Calls (with transcript and recording on each call), Calendar, Team (reset a password, switch a login off).
-  - Designer tabs: My leads (own leads only, tap to call, one tap to the next status), Calendar (others show as busy).
+- Dashboard: https://aangan-gold.vercel.app. One app, one login per designer (14). The voice agent answers the phone, so there is no front desk role.
+  - My leads: your own leads, soonest deadline first, tap to call, one tap to the next status. Call page shows details, transcript, recording, activity.
+  - Needs attention: shared by every designer. Escalations (call back within 15 minutes), missed calls, and declined calls to check, with a
+    "reverse" button that books a wrongly declined caller as a hot lead. Escalations also send a Telegram alert.
+  - Calendar: your own week, or all 14 calendars by day (other designers show as busy).
   - Founder reporting is not here. It lives in the CRM, which is a separate system.
 - Logins: `npm run users create` makes any missing login and writes one-time passwords to `credentials.local.txt`
-  (not committed). Everyone must choose their own password at first login. Forgotten password: front desk, Team tab, Reset password,
-  or `npm run users reset <username>`. Five wrong passwords lock an account for 10 minutes.
+  (not committed). Forgotten password: `npm run users reset <username>`. Five wrong passwords lock an account for 10 minutes.
 - Keys: the voice agent still uses `x-api-key` (`AGENT_API_KEY`) on `check_area`, `book_consultation`, `log_call` and `call-update`.
   The key no longer opens any dashboard data.
 - Transcript and recording: the dashboard shows them when attached. A voice-platform webhook or sync job attaches them with
@@ -44,7 +45,7 @@ To redeploy after changing code: `set -a; source .env; set +a; neon deploy --env
 ## Already done (by me)
 - Backend code, 31 passing tests, the agent prompt, tool definitions and the test-call answer key.
 - A private `AGENT_API_KEY` generated and saved in `.env` (Vaani sends it as the `x-api-key` header).
-- A local server with a built-in test database, the designer calendar screen and the front desk queue screen.
+- A local server with a built-in test database and the dashboard.
 - A replay of your 20 phone transcripts through the tools (`npm run simulate`).
 
 ## Try it now, no accounts needed

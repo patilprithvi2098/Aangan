@@ -2,7 +2,8 @@ import { route } from '../lib/http.js';
 import { getDb } from '../lib/db.js';
 
 // One call in full: details, summary, transcript, recording link and the status history.
-// A designer can open only their own; anything else looks like it does not exist.
+// A designer can open their own leads and the calls nobody owns (declined, escalated, missed). Another
+// designer's lead looks like it does not exist.
 export default route({ method: 'GET', auth: 'user' }, async (req, res) => {
   const db = getDb();
   const id = Number(req.query?.id);
@@ -15,7 +16,7 @@ export default route({ method: 'GET', auth: 'user' }, async (req, res) => {
        from calls c left join designers d on d.id = c.designer_id where c.id = $1`,
     [id],
   ))[0];
-  if (!call || (req.user.role === 'designer' && call.designer_id !== req.user.designer_id)) return res.status(404).json({ error: 'not found' });
+  if (!call || (call.designer_id !== null && call.designer_id !== req.user.designer_id)) return res.status(404).json({ error: 'not found' });
   const events = await db.query('select status, note, created_at from status_events where call_id = $1 order by created_at, id', [id]);
   return { call, events };
 });

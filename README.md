@@ -32,4 +32,4 @@ Copy the variable names from `.env.example` into a `.env` file. Real keys never 
 
 ## Logins
 
-`npm run users create` makes a login for every designer and the front desk and writes one-time passwords to `credentials.local.txt` (never committed). `npm run dev` runs everything locally on a throwaway database.
+`npm run users create` makes a login for every designer and writes one-time passwords to `credentials.local.txt` (never committed). `npm run dev` runs everything locally on a throwaway database.

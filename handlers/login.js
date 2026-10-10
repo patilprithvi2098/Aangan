@@ -15,7 +15,7 @@ export default route({ auth: 'none' }, async (req, res) => {
   const now = new Date();
   if (user?.locked_until && new Date(user.locked_until) > now) {
     const mins = Math.ceil((new Date(user.locked_until) - now) / 60000);
-    return res.status(429).json({ error: `Too many wrong attempts. Try again in ${mins} minute${mins === 1 ? '' : 's'}, or ask the front desk to reset your password.` });
+    return res.status(429).json({ error: `Too many wrong attempts. Try again in ${mins} minute${mins === 1 ? '' : 's'}, or ask the studio admin to reset your password.` });
   }
 
   // Check a password even for an unknown username, so the response time does not reveal who has an account.

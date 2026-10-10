@@ -3,11 +3,11 @@ import { getDb } from '../lib/db.js';
 import { bookLead, setStatus } from '../lib/store.js';
 import { notifyBooking } from '../lib/handoff.js';
 
-// Front desk actions on a call:
+// Actions on a call the bot could not finish alone (any signed-in designer):
 //   reviewed - a declined call was read and the decline is right
-//   done     - an escalation, callback or at-risk booking has been handled
+//   done     - an escalation or callback has been handled
 //   reverse  - the decline was wrong: book the caller with the next designer, marked hot
-export default route({ auth: 'user', roles: ['frontdesk'] }, async (req, res) => {
+export default route({ auth: 'user' }, async (req, res) => {
   const { id, action } = req.body || {};
   const note = String(req.body?.note || '').trim().slice(0, 300);
   const db = getDb();

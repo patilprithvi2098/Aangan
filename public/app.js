@@ -1,4 +1,4 @@
-// Aangan Enquiry Desk: login, front desk work queue, calls, call records, designer leads, calendars, team.
+// Aangan Enquiry Desk: login, my leads, needs attention, call records, calendars. Everyone who logs in is a designer.
 // Plain JavaScript, no build step. Everything shown from the server goes through esc().
 (() => {
 'use strict';
@@ -69,10 +69,9 @@ const badge = (text, cls = '') => `<span class="b ${cls}">${esc(text)}</span>`;
 const outcomeBadge = (o) => (OUTCOME[o] ? badge(OUTCOME[o][0], OUTCOME[o][1]) : '');
 const tierBadge = (t) => (TIER[t] ? badge(TIER[t][0], TIER[t][1]) : '');
 const statusBadge = (s) => badge(STATUS[s] || s, CLOSED.includes(s) ? (s === 'won' ? 'b-ok' : '') : 'b-info');
-const roleName = (r) => (r === 'frontdesk' ? 'Front desk' : 'Designer');
 
 /* ---------- state, api, toast ---------- */
-const S = { me: null, current: null, route: null, calls: { filter: 'all', q: '', shown: 50 }, cal: null, rtab: 'details', timer: null };
+const S = { me: null, current: null, route: null, cal: null, rtab: 'details', timer: null, callTab: 'leads' };
 
 async function api(path, body, { quiet = false, method } = {}) {
   const res = await fetch(`/api/${path}`, {
@@ -100,7 +99,6 @@ const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* pri
 
 /* ---------- login and password ---------- */
 function resetState() {
-  S.calls = { filter: 'all', q: '', shown: 50 };
   S.cal = null; S.callData = null; S.rtab = 'details'; S.route = null;
 }
 function showLogin(message) {
@@ -115,7 +113,7 @@ function showLogin(message) {
     <input class="field" id="p" name="password" type="password" autocomplete="current-password" required>
     <div id="login-err"></div>
     <button class="btn brand" type="submit">Log in</button>
-    <div class="foot">Forgot your password? Ask the front desk to reset it.</div>
+    <div class="foot">Forgot your password? Ask the studio admin to reset it.</div>
   </form></div>`;
   ($('#u').value ? $('#p') : $('#u')).focus();
 }
@@ -154,30 +152,28 @@ async function submitPassword(form) {
 }
 
 /* ---------- shell ---------- */
-function tabsFor(me) {
-  return me.role === 'frontdesk'
-    ? [['queue', 'Work queue', 'queue'], ['calls', 'Calls', 'phone'], ['calendar', 'Calendar', 'calendar'], ['team', 'Team', 'people']]
-    : [['leads', 'My leads', 'phone'], ['calendar', 'Calendar', 'calendar']];
+function tabsFor() {
+  return [['leads', 'My leads', 'phone'], ['attention', 'Needs attention', 'warning'], ['calendar', 'Calendar', 'calendar']];
 }
 function showShell() {
   const me = S.me;
   $('#app').innerHTML = `<header class="gh">
       <div class="logo">A</div>
-      <div class="app">Aangan Enquiry Desk<small>${esc(roleName(me.role))} · phone enquiries</small></div>
-      ${me.role === 'frontdesk' ? `<form class="search" id="search" role="search">${ic('search')}<input id="q" type="search" placeholder="Search calls by name, number or area" aria-label="Search calls" value="${esc(S.calls.q)}"></form>` : '<div class="search"></div>'}
+      <div class="app">Aangan Enquiry Desk<small>Phone enquiries</small></div>
+      <div class="search"></div>
       <button class="avatar" id="avatar" aria-haspopup="true" aria-label="Account menu">${esc(initials(me.name))}</button>
     </header>
     <div class="menu hide" id="menu" role="menu">
-      <div class="who"><div class="strong">${esc(me.name)}</div><div class="muted small">${esc(roleName(me.role))} · ${esc(me.username)}</div></div>
+      <div class="who"><div class="strong">${esc(me.name)}</div><div class="muted small">Designer · ${esc(me.username)}</div></div>
       <button data-act="chpw">${ic('lock')} Change password</button>
       <button data-act="logout">${ic('logout')} Log out</button>
     </div>
-    <nav class="tabs" id="tabs" aria-label="Sections">${tabsFor(me).map(([k, l, i]) => `<a class="tab" data-tab="${k}" href="#/${k}">${ic(i)}${l}<span class="n hide" data-badge="${k}"></span></a>`).join('')}</nav>
+    <nav class="tabs" id="tabs" aria-label="Sections">${tabsFor().map(([k, l, i]) => `<a class="tab" data-tab="${k}" href="#/${k}">${ic(i)}${l}<span class="n hide" data-badge="${k}"></span></a>`).join('')}</nav>
     <main id="view"></main>`;
 }
 function markTab() {
   const name = S.route.name;
-  const on = name === 'call' ? (S.me.role === 'frontdesk' ? 'calls' : 'leads') : name;
+  const on = name === 'call' ? S.callTab : name;
   $$('.tab').forEach((t) => t.classList.toggle('on', t.dataset.tab === on));
 }
 function setBadge(key, n) {
@@ -194,17 +190,16 @@ async function route() {
   if (!S.me || S.me.must_change) return;
   if (!$('#view')) showShell();
   const { name, arg } = parseHash();
-  const desk = S.me.role === 'frontdesk';
-  const allowed = desk ? ['queue', 'calls', 'call', 'calendar', 'team'] : ['leads', 'call', 'calendar'];
-  if (!allowed.includes(name)) { location.hash = `#/${desk ? 'queue' : 'leads'}`; return; }
+  if (!['leads', 'attention', 'call', 'calendar'].includes(name)) { location.hash = '#/leads'; return; }
   S.route = { name, arg };
   if (name === 'call') S.rtab = 'details';
   markTab();
-  const views = { queue: vQueue, calls: vCalls, call: () => vCall(arg), calendar: vCalendar, team: vTeam, leads: vLeads };
+  const views = { leads: vLeads, attention: vAttention, call: () => vCall(arg), calendar: vCalendar };
   S.current = views[name];
   $('#view').innerHTML = '<div class="card"><div class="skel"></div><div class="skel" style="width:60%"></div><div class="skel" style="width:80%"></div></div>';
   window.scrollTo(0, 0);
   await run(false);
+  badges();
   startTimer();
 }
 async function run(quiet) {
@@ -213,9 +208,20 @@ async function run(quiet) {
     if (token === S.route && e.status !== 401 && !quiet) $('#view').innerHTML = `<div class="banner err">${ic('warning')}<div class="grow">${esc(e.message)}</div><button class="btn sm" data-act="refresh">Try again</button></div>`;
   }
 }
+// The red counts on the tabs: calls to return, and my leads due within two hours.
+async function badges() {
+  try {
+    const [q, l] = await Promise.all([api('queue', null, { quiet: true }), api('my-leads', null, { quiet: true })]);
+    setBadge('attention', q.escalations.length + q.callbacks.length + q.declines.length);
+    setBadge('leads', l.leads.filter((x) => ['new', 'accepted'].includes(x.status) && Date.parse(x.call_by) - Date.now() < 2 * HOUR).length);
+  } catch (e) { /* the page itself reports errors */ }
+}
 function startTimer() {
   stopTimer();
-  S.timer = setInterval(() => { if (!document.hidden && !$('.overlay') && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || '')) run(true); }, 20000);
+  S.timer = setInterval(() => {
+    if (document.hidden || $('.overlay') || /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || '')) return;
+    run(true); badges();
+  }, 20000);
 }
 function stopTimer() { clearInterval(S.timer); S.timer = null; }
 const render = (html) => { const v = $('#view'); if (v) v.innerHTML = html; };
@@ -233,53 +239,29 @@ function listCard(title, hint, rows, items, empty) {
 const callName = (c) => esc(c.caller_name || 'Unknown caller');
 const phoneLink = (p) => (p ? `<a href="tel:${tel(p)}">${esc(p)}</a>` : '<span class="muted">no number</span>');
 
-/* ---------- front desk: work queue ---------- */
-async function vQueue() {
+/* ---------- needs attention: what the bot could not finish alone ---------- */
+async function vAttention() {
   const q = await api('queue');
   const now = Date.now();
-  const s = q.stats;
   const esc15 = q.escalations.map((r) => ({ ...r, deadline: new Date(Date.parse(r.created_at) + 15 * MIN).toISOString() }));
-  setBadge('queue', q.escalations.length + q.callbacks.length + q.lateBookings.length);
-  render(`${pageHead({ icon: 'queue', color: '#0176d3', kicker: `${day(now)}`, title: `${greeting()}, ${esc(S.me.name.split(' ')[0])}`, actions: refreshBtn })}
-    ${kpis([['Calls today', s.calls], ['Qualified today', s.booked, 'good'], ['Declined today', s.declined], ['Escalations open', q.escalations.length, q.escalations.length ? 'bad' : 'good'], ['Bookings at risk', q.lateBookings.length, q.lateBookings.length ? 'bad' : 'good']])}
+  const total = q.escalations.length + q.callbacks.length + q.declines.length;
+  setBadge('attention', total);
+  render(`${pageHead({ icon: 'warning', color: '#ba0517', kicker: 'Shared by every designer · anyone can pick one up', title: 'Needs attention', actions: refreshBtn })}
+    ${kpis([['Escalations to call back', q.escalations.length, q.escalations.length ? 'bad' : 'good'], ['Missed calls to return', q.callbacks.length, q.callbacks.length ? 'warn' : 'good'], ['Declined calls to check', q.declines.length, q.declines.length ? 'warn' : 'good']])}
     <div class="grid2">
       ${listCard('Escalations', 'Call back within 15 minutes', esc15, esc15.map((r) => `<div class="item click" data-act="open" data-id="${r.id}"><div class="grow"><div class="t">${callName(r)}</div><div class="m">${phoneLink(r.caller_phone)} · ${ago(r.created_at)}</div><div class="snip">${esc(r.summary || '')}</div></div><div class="side">${due(r.deadline, now)}<button class="btn sm brand" data-act="done" data-id="${r.id}">Called back</button></div></div>`).join(''), 'No one is waiting for a senior callback.')}
-      ${listCard('Callbacks owed', 'Missed or dropped calls', q.callbacks, q.callbacks.map((r) => `<div class="item click" data-act="open" data-id="${r.id}"><div class="grow"><div class="t">${phoneLink(r.caller_phone)}</div><div class="m">Call came in ${ago(r.created_at)}</div></div><div class="side"><button class="btn sm brand" data-act="done" data-id="${r.id}">Called back</button></div></div>`).join(''), 'No missed calls to return.')}
-      ${listCard('Declined calls to check', 'A wrong decline loses a real lead', q.declines, q.declines.map((r) => `<div class="item click" data-act="open" data-id="${r.id}"><div class="grow"><div class="t">${callName(r)} <span class="m">${esc(r.area || '')}</span></div><div class="m">Reason: ${esc(r.decline_reason || 'not recorded')} · ${ago(r.created_at)}</div><div class="snip">${esc(r.summary || '')}</div></div><div class="side"><button class="btn sm danger" data-act="reverse" data-id="${r.id}" data-name="${esc(r.caller_name || 'this caller')}">Wrong, reverse</button><button class="btn sm" data-act="reviewed" data-id="${r.id}">Looks right</button></div></div>`).join(''), 'Every decline has been checked.')}
-      ${listCard('Bookings at risk', 'Clears when the designer marks the lead called', q.lateBookings, q.lateBookings.map((r) => `<div class="item click" data-act="open" data-id="${r.id}"><span class="bar ${r.tier}"></span><div class="grow"><div class="t">${callName(r)} <span class="m">with ${esc(r.designer)}</span></div><div class="m">${tierBadge(r.tier)} Call by ${when(r.call_by)}</div></div><div class="side">${due(r.call_by, now)}</div></div>`).join(''), 'Every lead is being called inside its window.')}
-    </div>`);
-}
-
-/* ---------- front desk: calls list ---------- */
-async function vCalls() {
-  const data = await api('calls?limit=500');
-  S.calls.data = data;
-  drawCalls();
-}
-function drawCalls() {
-  const { data, filter, q, shown } = S.calls;
-  if (!data || S.route.name !== 'calls') return;
-  const t = data.totals;
-  const needle = q.trim().toLowerCase();
-  const rows = data.calls.filter((c) => (filter === 'all' || c.outcome === filter) && (!needle || [c.caller_name, c.caller_phone, c.area, c.project_type, c.designer].some((x) => String(x || '').toLowerCase().includes(needle))));
-  const chips = [['all', 'All', t.total], ['qualified', 'Qualified', t.qualified], ['declined', 'Declined', t.declined], ['escalated', 'Escalated', t.escalated], ['missed', 'Missed', t.missed], ['info_only', 'Info only', t.info_only]];
-  render(`${pageHead({ icon: 'phone', color: '#0b827c', kicker: 'Calls', title: 'All calls', actions: refreshBtn })}
-    <div class="card"><div class="toolbar"><div class="chips">${chips.map(([k, l, n]) => `<button class="chip ${k === filter ? 'on' : ''}" data-act="filter" data-f="${k}">${l}<small>${n}</small></button>`).join('')}</div>
-      <input class="field right" id="filter-q" type="search" placeholder="Filter this list" value="${esc(q)}" style="width:220px" aria-label="Filter this list"></div>
-      <div class="tw"><table class="tbl"><thead><tr><th>Caller</th><th>Phone</th><th>Area</th><th>Project</th><th>Outcome</th><th>Urgency</th><th>Designer</th><th>Status</th><th>Time</th></tr></thead><tbody>
-      ${rows.slice(0, shown).map((c) => `<tr class="click" data-act="open" data-id="${c.id}"><td><span class="strong" style="color:var(--brand)">${callName(c)}</span>${c.has_transcript || c.has_recording ? ` <span class="muted" title="Transcript or recording available">${ic('doc')}</span>` : ''}</td><td>${esc(c.caller_phone || '')}</td><td>${esc(c.area || '')}</td><td>${esc(c.project_type || '')}${c.size_sqft ? ` <span class="muted">${esc(c.size_sqft)} sq ft</span>` : ''}</td><td>${outcomeBadge(c.outcome)}</td><td>${tierBadge(c.tier)}</td><td>${esc(c.designer || '')}</td><td>${c.outcome === 'qualified' ? statusBadge(c.status) : c.outcome === 'declined' && c.reviewed ? badge('Checked') : ''}</td><td class="muted">${when(c.created_at)}</td></tr>`).join('')}
-      </tbody></table></div>
-      ${rows.length ? '' : '<div class="empty">No calls match.</div>'}
-      ${rows.length > shown ? `<div class="toolbar" style="justify-content:center;border:0"><button class="btn" data-act="more">Show more (${rows.length - shown} left)</button></div>` : ''}
-    </div>`);
-  const f = $('#filter-q');
-  if (f && S.calls.focus) { f.focus(); f.setSelectionRange(f.value.length, f.value.length); S.calls.focus = false; }
+      ${listCard('Missed calls', 'Dropped or unanswered calls', q.callbacks, q.callbacks.map((r) => `<div class="item click" data-act="open" data-id="${r.id}"><div class="grow"><div class="t">${phoneLink(r.caller_phone)}</div><div class="m">Call came in ${ago(r.created_at)}</div></div><div class="side"><button class="btn sm brand" data-act="done" data-id="${r.id}">Called back</button></div></div>`).join(''), 'No missed calls to return.')}
+    </div>
+    <div style="height:12px"></div>
+    ${listCard('Declined calls to check', 'A wrong decline loses a real lead. Read it, then confirm or reverse it', q.declines, q.declines.map((r) => `<div class="item click" data-act="open" data-id="${r.id}"><div class="grow"><div class="t">${callName(r)} <span class="m">${esc(r.area || '')}</span></div><div class="m">Reason: ${esc(r.decline_reason || 'not recorded')} · ${ago(r.created_at)}</div><div class="snip">${esc(r.summary || '')}</div></div><div class="side"><button class="btn sm danger" data-act="reverse" data-id="${r.id}" data-name="${esc(r.caller_name || 'this caller')}">Wrong, reverse</button><button class="btn sm" data-act="reviewed" data-id="${r.id}">Looks right</button></div></div>`).join(''), 'Every decline has been checked.')}`);
 }
 
 /* ---------- a single call ---------- */
 async function vCall(id) {
   const d = await api(`call?id=${encodeURIComponent(id)}`);
   S.callData = d;
+  S.callTab = d.call.outcome === 'qualified' ? 'leads' : 'attention';
+  markTab();
   drawCall();
 }
 function parseTranscript(text) {
@@ -300,17 +282,16 @@ function pathHtml(c) {
 }
 function drawCall() {
   const { call: c, events } = S.callData;
-  const desk = S.me.role === 'frontdesk';
   const now = Date.now();
-  const back = desk ? '#/calls' : '#/leads';
+  const back = `#/${S.callTab}`;
   const qualified = c.outcome === 'qualified';
   const open = !CLOSED.includes(c.status);
   const actions = [
     `<a class="btn" href="${back}">${ic('back')} Back</a>`,
     c.caller_phone ? `<a class="btn brand" href="tel:${tel(c.caller_phone)}">${ic('phone')} Call ${esc(c.caller_phone)}</a>` : '',
     qualified && open ? `<button class="btn" data-act="status" data-id="${c.id}" data-status="not_a_fit">Not a fit</button><button class="btn danger" data-act="status" data-id="${c.id}" data-status="lost">Mark lost</button>` : '',
-    desk && c.outcome === 'declined' ? `<button class="btn danger" data-act="reverse" data-id="${c.id}" data-name="${esc(c.caller_name || 'this caller')}">Wrong decline, reverse</button>${c.reviewed ? '' : `<button class="btn" data-act="reviewed" data-id="${c.id}">Looks right</button>`}` : '',
-    desk && ['escalated', 'missed'].includes(c.outcome) && c.status === 'new' ? `<button class="btn brand" data-act="done" data-id="${c.id}">Mark done</button>` : '',
+    c.outcome === 'declined' ? `<button class="btn danger" data-act="reverse" data-id="${c.id}" data-name="${esc(c.caller_name || 'this caller')}">Wrong decline, reverse</button>${c.reviewed ? '' : `<button class="btn" data-act="reviewed" data-id="${c.id}">Looks right</button>`}` : '',
+    ['escalated', 'missed'].includes(c.outcome) && c.status === 'new' ? `<button class="btn brand" data-act="done" data-id="${c.id}">Mark done</button>` : '',
   ].join('');
   const banner = c.outcome === 'declined'
     ? `<div class="banner warn">${ic('warning')}<div class="grow"><strong>The agent declined this call.</strong> Reason: ${esc(c.decline_reason || 'not recorded')}. Read the summary and transcript before agreeing: a wrongly declined lead is the costliest mistake.${c.reviewed ? ' <strong>Already checked.</strong>' : ''}</div></div>`
@@ -433,19 +414,6 @@ function drawCalendar() {
     <p class="muted small">Times are India time. Slots are 30 minutes, ${S.me.role === 'designer' ? 'and you see other designers only as busy' : 'booked by the agent in rotation'}. Showing today and the next seven days.</p>`);
 }
 
-/* ---------- front desk: team ---------- */
-async function vTeam() {
-  const { users } = await api('users');
-  S.users = users;
-  render(`${pageHead({ icon: 'people', color: '#9050e9', kicker: 'Team', title: 'People and logins', actions: refreshBtn })}
-    <div class="card"><div class="tw"><table class="tbl"><thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Last login</th><th>Status</th><th></th></tr></thead><tbody>
-    ${users.map((u) => `<tr><td class="strong">${esc(u.name)}</td><td>${esc(u.username)}</td><td>${esc(roleName(u.role))}</td><td class="muted">${u.last_login ? when(u.last_login) : 'Never'}</td>
-      <td>${!u.active ? badge('Switched off', 'b-err') : u.locked ? badge('Locked', 'b-warn') : u.must_change ? badge('Has not set a password', 'b-info') : badge('Active', 'b-ok')}</td>
-      <td style="text-align:right"><button class="btn sm" data-act="reset-pw" data-id="${u.id}" data-name="${esc(u.name)}">Reset password</button> <button class="btn sm ${u.active ? 'danger' : ''}" data-act="toggle-active" data-id="${u.id}" data-on="${u.active ? '1' : '0'}" ${u.id === S.me.id ? 'disabled' : ''}>${u.active ? 'Switch off' : 'Switch on'}</button></td></tr>`).join('')}
-    </tbody></table></div></div>
-    <p class="muted small">Everyone has their own login. A reset gives a one-time password that is shown once; the person must choose their own at the next login.</p>`);
-}
-
 /* ---------- modal ---------- */
 function modal({ title, body, confirm, danger, onConfirm, hideCancel }) {
   const el = document.createElement('div');
@@ -507,25 +475,10 @@ const ACTIONS = {
     await refreshNow();
   }),
   rtab: (el) => { S.rtab = el.dataset.t; drawCall(); },
-  filter: (el) => { S.calls.filter = el.dataset.f; S.calls.shown = 50; drawCalls(); },
-  more: () => { S.calls.shown += 50; drawCalls(); },
   'cal-prev': () => { S.cal.dayMs -= S.cal.mode === 'week' ? 7 * DAY : DAY; drawCalendar(); },
   'cal-next': () => { S.cal.dayMs += S.cal.mode === 'week' ? 7 * DAY : DAY; drawCalendar(); },
   'cal-today': () => { S.cal.dayMs = istMidnight(Date.now()); drawCalendar(); },
   'cal-mode': (el) => { S.cal.mode = el.dataset.m; drawCalendar(); },
-  'reset-pw': (el) => {
-    modal({
-      title: `Reset password for ${el.dataset.name}?`,
-      body: '<p style="margin:0">They will be logged out everywhere. You will see a one-time password once. Give it to them; they choose their own at the next login.</p>',
-      confirm: 'Reset password',
-      onConfirm: async () => {
-        const r = await api('user-reset', { id: Number(el.dataset.id) });
-        modal({ title: 'One-time password', hideCancel: true, confirm: 'Done', body: `<p style="margin:0">Give this to <strong>${esc(el.dataset.name)}</strong> now. It is not shown again.</p><div class="secret" id="otp">${esc(r.one_time_password)}</div><button class="btn sm" data-act="copy" data-text="${esc(r.one_time_password)}">Copy</button>` });
-        await refreshNow();
-      },
-    });
-  },
-  'toggle-active': (el) => guard(el, async () => { await api('user-active', { id: Number(el.dataset.id), active: el.dataset.on !== '1' }); toast(el.dataset.on === '1' ? 'Login switched off.' : 'Login switched on.'); await refreshNow(); }),
   copy: async (el) => { try { await navigator.clipboard.writeText(el.dataset.text); toast('Copied.'); } catch (e) { toast('Copy it by hand.', 'err'); } },
 };
 
@@ -554,13 +507,7 @@ document.addEventListener('submit', async (e) => {
     } catch (err) { $('#login-err').innerHTML = `<div class="err-msg" role="alert">${esc(err.message)}</div>`; btn.disabled = false; $('#p').select(); }
   } else if (form.id === 'change-form') {
     if (await submitPassword(form)) { toast('Password saved. Welcome.'); showShell(); route(); }
-  } else if (form.id === 'search') {
-    S.calls.q = $('#q').value; S.calls.filter = 'all'; S.calls.shown = 50;
-    if (S.route?.name === 'calls') drawCalls(); else location.hash = '#/calls';
   }
-});
-document.addEventListener('input', (e) => {
-  if (e.target.id === 'filter-q') { S.calls.q = e.target.value; S.calls.shown = 50; S.calls.focus = true; drawCalls(); }
 });
 document.addEventListener('change', (e) => {
   if (e.target.id === 'cal-designer') { S.cal.designerId = Number(e.target.value); drawCalendar(); }

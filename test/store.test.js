@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { testDb, NOW } from './helpers.js';
-import { bookLead, logCall, frontDeskQueue, setStatus } from '../lib/store.js';
+import { bookLead, logCall, attentionQueue, setStatus } from '../lib/store.js';
 
 const lead = (n, extra = {}) => ({
   call_id: `call-${n}`, caller_name: `Caller ${n}`, caller_phone: '+910000000000', project_type: '2BHK full home',
@@ -52,17 +52,17 @@ test('budget not stated is recorded as such', async () => {
   assert.equal(rows[0].budget_note, 'not stated');
 });
 
-test('declines land in the front desk review queue and can be reviewed', async () => {
+test('declines land in the needs-attention queue and can be reviewed', async () => {
   const db = await testDb();
   await logCall(db, { call_id: 'd1', outcome: 'declined', decline_reason: 'outside service area: Nashik', caller_phone: '+91', area: 'Nashik' });
   await logCall(db, { call_id: 'e1', outcome: 'escalated', summary: 'existing client, no reply for 5 days' });
   await logCall(db, { call_id: 'm1', outcome: 'missed', caller_phone: '+91' });
-  const q = await frontDeskQueue(db);
+  const q = await attentionQueue(db);
   assert.equal(q.declines.length, 1);
   assert.equal(q.escalations.length, 1);
   assert.equal(q.callbacks.length, 1);
   await db.query('update calls set reviewed = true where call_id = $1', ['d1']);
-  assert.equal((await frontDeskQueue(db)).declines.length, 0);
+  assert.equal((await attentionQueue(db)).declines.length, 0);
 });
 
 test('status updates are recorded', async () => {

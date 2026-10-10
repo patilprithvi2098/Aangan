@@ -1,5 +1,5 @@
 // Manage logins from the command line (needs DATABASE_URL).
-//   node scripts/users.js create            make a login for every designer and front desk person that does not have one
+//   node scripts/users.js create            make a login for every designer that does not have one
 //   node scripts/users.js reset <username>  new one-time password for someone who forgot theirs
 // One-time passwords are written to credentials.local.txt (not committed) and never printed.
 import { appendFileSync } from 'node:fs';

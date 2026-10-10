@@ -82,16 +82,6 @@ test('book without a call id derives one, and a retry for the same number does n
   assert.equal(b.body.spoken, a.body.spoken);
 });
 
-test('calls list shows every outcome with totals to the front desk', async () => {
-  const db = await testDb();
-  await call('book', { call_id: 'd1', caller_name: 'A', caller_phone: '+91 90000 11111', project_type: '2BHK', area: 'Baner' });
-  await call('log-call', { call_id: 'd2', outcome: 'declined', decline_reason: 'restaurant' });
-  const res = await request('calls', { method: 'GET', headers: await signedIn(db, 'sneha', 'frontdesk') });
-  assert.equal(res.body.totals.total, 2);
-  assert.equal(res.body.totals.qualified, 1);
-  assert.equal(res.body.calls.some((c) => c.designer === 'Aryan'), true);
-});
-
 test('a designer sees only their own leads and can mark a status from the dashboard', async () => {
   const db = await testDb();
   await call('book', { call_id: 'm1', caller_name: 'One', caller_phone: '+91 90000 22221', project_type: '2BHK', area: 'Baner' });

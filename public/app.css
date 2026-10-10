@@ -172,6 +172,7 @@ audio{width:100%;max-width:560px}
 @media(max-width:700px){
   .gh{gap:10px;padding:0 12px}.gh .app small{display:none}.search{display:none}.gh .app{font-size:15px}
   main{padding:10px}
+  .tabs{padding:0 6px}.tab{padding:0 12px;gap:6px}.tab svg{display:none}
   .ph{gap:10px;padding:12px}.ph h1{font-size:18px}.ph .actions{margin-left:0;width:100%}
   .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
   .kpi{padding:10px 14px;border-bottom:1px solid var(--line)}.kpi:nth-child(2n){border-right:0}

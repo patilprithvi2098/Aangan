@@ -31,7 +31,7 @@ if (!process.env.DATABASE_URL) {
 const handlers = {};
 for (const name of [
   'health', 'check-area', 'book', 'log-call', 'call-update', 'telegram', 'login', 'logout', 'me', 'change-password',
-  'queue', 'calendar', 'review', 'calls', 'call', 'my-leads', 'set-status', 'users', 'user-reset', 'user-active',
+  'queue', 'calendar', 'review', 'call', 'my-leads', 'set-status',
 ]) {
   handlers[name] = (await import(`./handlers/${name}.js`)).default;
 }
