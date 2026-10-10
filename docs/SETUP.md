@@ -1,10 +1,20 @@
 # Current status (10 Oct 2026)
 
-- Dashboards are live on Vercel: https://aangan-gold.vercel.app (home, /queue, /calendar, /calls, /designer).
-  Vercel only hosts the pages in `public/` and forwards `/api/*` to the Neon Function (see `vercel.json`), so it holds no
-  database or agent key. Changing the Neon Function address means changing the one rewrite in `vercel.json`.
-- The endpoint files moved from `api/` to `handlers/` so Vercel does not build them as its own functions.
-- HubSpot is waiting for a Private App token (`HUBSPOT_TOKEN`). Until then bookings skip the CRM step and say so.
+- Dashboard: https://aangan-gold.vercel.app. One app with a login for every person: 2 front desk, 14 designers.
+  - Front desk tabs: Work queue, Calls (with transcript and recording on each call), Calendar, Team (reset a password, switch a login off).
+  - Designer tabs: My leads (own leads only, tap to call, one tap to the next status), Calendar (others show as busy).
+  - Founder reporting is not here. It lives in the CRM, which is a separate system.
+- Logins: `npm run users create` makes any missing login and writes one-time passwords to `credentials.local.txt`
+  (not committed). Everyone must choose their own password at first login. Forgotten password: front desk, Team tab, Reset password,
+  or `npm run users reset <username>`. Five wrong passwords lock an account for 10 minutes.
+- Keys: the voice agent still uses `x-api-key` (`AGENT_API_KEY`) on `check_area`, `book_consultation`, `log_call` and `call-update`.
+  The key no longer opens any dashboard data.
+- Transcript and recording: the dashboard shows them when attached. A voice-platform webhook or sync job attaches them with
+  `POST /api/call-update` (header `x-api-key`; body `call_id`, `transcript`, `recording_url`, `duration_sec`). Until that is wired,
+  the call page links to Vaani, Conversations, History.
+- Vercel only hosts `public/` and forwards `/api/*` to the Neon Function (`vercel.json`), so it holds no database or agent key.
+- The CRM push after a booking is still in the backend and is skipped without `HUBSPOT_TOKEN`.
+- Local try-out without any accounts: `npm run dev` (throwaway database, logins in `.data/credentials.txt`), then `npm run simulate`.
 
 # Current status (8 Oct 2026)
 

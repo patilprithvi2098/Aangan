@@ -29,3 +29,7 @@ Copy the variable names from `.env.example` into a `.env` file. Real keys never 
 - It never asks about budget.
 - When unsure, it forwards the lead. A decline needs a stated fact and a read-back, and every decline is reviewed.
 - Standard call-back time is 48 hours; Priority is 24 hours; Hot is 2 working hours.
+
+## Logins
+
+`npm run users create` makes a login for every designer and the front desk and writes one-time passwords to `credentials.local.txt` (never committed). `npm run dev` runs everything locally on a throwaway database.
