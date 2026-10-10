@@ -1,3 +1,11 @@
+# Current status (10 Oct 2026)
+
+- Dashboards are live on Vercel: https://aangan-gold.vercel.app (home, /queue, /calendar, /calls, /designer).
+  Vercel only hosts the pages in `public/` and forwards `/api/*` to the Neon Function (see `vercel.json`), so it holds no
+  database or agent key. Changing the Neon Function address means changing the one rewrite in `vercel.json`.
+- The endpoint files moved from `api/` to `handlers/` so Vercel does not build them as its own functions.
+- HubSpot is waiting for a Private App token (`HUBSPOT_TOKEN`). Until then bookings skip the CRM step and say so.
+
 # Current status (8 Oct 2026)
 
 - Vaani agent runs on `docs/agent-prompt.md` (lean, about 5.8k characters) plus a Vaani knowledge base built from
