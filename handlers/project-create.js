@@ -1,5 +1,6 @@
 import { route } from '../lib/http.js';
 import { getDb } from '../lib/db.js';
+import { updateDeal } from '../lib/hubspot.js';
 
 // A lead was won: the designer starts the project. The customer details come from what the agent captured on the call.
 export default route({ auth: 'user', roles: ['designer'] }, async (req, res) => {
@@ -22,5 +23,7 @@ export default route({ auth: 'user', roles: ['designer'] }, async (req, res) => 
     [`AS-${year}-${String(count + 1).padStart(3, '0')}-${call.id}`, call.id, req.user.designer_id, String(name || '').trim().slice(0, 100) || `${surname} project`, call.caller_name || 'Customer', call.caller_phone,
       call.area, String(site || '').trim().slice(0, 200) || null, call.project_type, call.size_sqft, day(start), day(target), amount > 0 ? amount : null, call.summary],
   ))[0];
+  const deal = (await db.query('select hubspot_deal_id from calls where id = $1', [call.id]))[0]?.hubspot_deal_id;
+  if (deal && amount > 0) await updateDeal(deal, { amount: String(Math.round(amount * 100000)), ...(day(target) ? { closedate: day(target) } : {}) }).catch(() => {});
   return { project_id: row.id };
 });

@@ -1,5 +1,6 @@
 import { route } from '../lib/http.js';
 import { getDb } from '../lib/db.js';
+import { updateDeal } from '../lib/hubspot.js';
 
 const STAGES = ['design', 'approvals', 'execution', 'finishing', 'handover'];
 
@@ -15,5 +16,14 @@ export default route({ auth: 'user', roles: ['designer'] }, async (req, res) => 
   await db.query('update projects set stage = $2, progress_pct = $3, target_date = $4, summary = $5, value_lakh = $6 where id = $1', [
     project.id, stage ?? project.stage, progress ?? project.progress_pct, target ?? project.target_date, summary === undefined ? project.summary : String(summary).slice(0, 600), value === undefined ? project.value_lakh : (Number(value) > 0 ? Number(value) : null),
   ]);
+  if (target !== undefined || value !== undefined) {
+    const p = (await db.query('select p.value_lakh, p.target_date, c.hubspot_deal_id from projects p left join calls c on c.id = p.call_id where p.id = $1', [project.id]))[0];
+    if (p?.hubspot_deal_id) {
+      const props = {};
+      if (p.value_lakh) props.amount = String(Math.round(Number(p.value_lakh) * 100000));
+      if (p.target_date) props.closedate = new Date(p.target_date).toISOString().slice(0, 10);
+      if (Object.keys(props).length) await updateDeal(p.hubspot_deal_id, props).catch(() => {});
+    }
+  }
   return { ok: true };
 });
