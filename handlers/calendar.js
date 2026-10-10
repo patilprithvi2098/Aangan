@@ -4,7 +4,7 @@ import { DEFAULT_HOURS, SLOT_MINUTES } from '../lib/time.js';
 
 // The 14 designer calendars for the next week. A designer sees their own bookings in full and everyone
 // else's as plain "busy".
-export default route({ method: 'GET', auth: 'user' }, async (req) => {
+export default route({ method: 'GET', auth: 'user', roles: ['designer'] }, async (req) => {
   const db = getDb();
   const designers = await db.query('select id, name, rr_order from designers where active order by rr_order');
   const rows = await db.query(

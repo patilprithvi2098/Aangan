@@ -214,3 +214,8 @@ audio{width:100%;max-width:560px}
   .bub{max-width:92%}
   .pgrid{grid-template-columns:1fr}.when{width:96px}.gal{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 }
+
+.steps{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.how{margin:0 0 4px;padding-left:20px;display:grid;gap:8px}
+.say{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--line);font-size:14px}
+.say .b{flex:none;margin-top:1px}

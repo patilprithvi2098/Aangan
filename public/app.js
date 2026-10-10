@@ -1,4 +1,5 @@
-// Aangan Enquiry Desk: login, my leads, needs attention, call records, calendars. Everyone who logs in is a designer.
+// Aangan Enquiry Desk: login, my leads, needs attention, call records, calendars. Designers log in, plus one "chayya" login
+// that opens the voice agent's test console.
 // Plain JavaScript, no build step. Everything shown from the server goes through esc().
 (() => {
 'use strict';
@@ -160,6 +161,7 @@ async function submitPassword(form) {
 
 /* ---------- shell ---------- */
 function tabsFor() {
+  if (S.me.role === 'chayya') return [['console', 'Voice agent', 'phone']];
   return [['leads', 'My leads', 'phone'], ['projects', 'My projects', 'home'], ['attention', 'Needs attention', 'warning'], ['calendar', 'Calendar', 'calendar']];
 }
 function showShell() {
@@ -171,7 +173,7 @@ function showShell() {
       <button class="avatar" id="avatar" aria-haspopup="true" aria-label="Account menu">${esc(initials(me.name))}</button>
     </header>
     <div class="menu hide" id="menu" role="menu">
-      <div class="who"><div class="strong">${esc(me.name)}</div><div class="muted small">Designer · ${esc(me.username)}</div></div>
+      <div class="who"><div class="strong">${esc(me.name)}</div><div class="muted small">${me.role === 'chayya' ? 'Voice agent test login' : 'Designer'} · ${esc(me.username)}</div></div>
       <button data-act="chpw">${ic('lock')} Change password</button>
       <button data-act="logout">${ic('logout')} Log out</button>
     </div>
@@ -197,12 +199,13 @@ async function route() {
   if (!S.me || S.me.must_change) return;
   if (!$('#view')) showShell();
   const { name, arg } = parseHash();
-  if (!['leads', 'projects', 'project', 'attention', 'call', 'calendar'].includes(name)) { location.hash = '#/leads'; return; }
+  const fd = S.me.role === 'chayya';
+  if (!(fd ? ['console', 'call'] : ['leads', 'projects', 'project', 'attention', 'call', 'calendar']).includes(name)) { location.hash = fd ? '#/console' : '#/leads'; return; }
   S.route = { name, arg };
   if (name === 'call') S.rtab = 'details';
   if (name === 'project') S.ptab = 'overview';
   markTab();
-  const views = { leads: vLeads, projects: vProjects, project: () => vProject(arg), attention: vAttention, call: () => vCall(arg), calendar: vCalendar };
+  const views = { console: vConsole, leads: vLeads, projects: vProjects, project: () => vProject(arg), attention: vAttention, call: () => vCall(arg), calendar: vCalendar };
   S.current = views[name];
   $('#view').innerHTML = '<div class="card"><div class="skel"></div><div class="skel" style="width:60%"></div><div class="skel" style="width:80%"></div></div>';
   window.scrollTo(0, 0);
@@ -218,6 +221,7 @@ async function run(quiet) {
 }
 // The red counts on the tabs: calls to return, and my leads due within two hours.
 async function badges() {
+  if (S.me.role === 'chayya') return;
   try {
     const [q, l] = await Promise.all([api('queue', null, { quiet: true }), api('my-leads', null, { quiet: true })]);
     setBadge('attention', q.escalations.length + q.callbacks.length + q.declines.length);
@@ -229,7 +233,7 @@ function startTimer() {
   S.timer = setInterval(() => {
     if (document.hidden || $('.overlay') || /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || '')) return;
     run(true); badges();
-  }, 20000);
+  }, S.me.role === 'chayya' ? 5000 : 20000);
 }
 function stopTimer() { clearInterval(S.timer); S.timer = null; }
 const render = (html) => { const v = $('#view'); if (v) v.innerHTML = html; };
@@ -268,7 +272,7 @@ async function vAttention() {
 async function vCall(id) {
   const d = await api(`call?id=${encodeURIComponent(id)}`);
   S.callData = d;
-  S.callTab = d.call.outcome === 'qualified' ? 'leads' : 'attention';
+  S.callTab = S.me.role === 'chayya' ? 'console' : d.call.outcome === 'qualified' ? 'leads' : 'attention';
   markTab();
   drawCall();
 }
@@ -294,7 +298,7 @@ function drawCall() {
   const back = `#/${S.callTab}`;
   const qualified = c.outcome === 'qualified';
   const open = !CLOSED.includes(c.status);
-  const actions = [
+  const actions = S.me.role === 'chayya' ? `<a class="btn" href="${back}">${ic('back')} Back to the console</a>` : [
     `<a class="btn" href="${back}">${ic('back')} Back</a>`,
     project ? `<a class="btn" href="#/project/${project.id}">Open project</a>` : '',
     !project && qualified && c.status === 'won' ? `<button class="btn brand" data-act="make-project" data-id="${c.id}" data-name="${esc(c.caller_name || 'Customer')}">Start project</button>` : '',
@@ -337,6 +341,53 @@ function drawCall() {
   render(`${pageHead({ icon: 'phone', color: '#0b827c', kicker: `Call · ${when(c.created_at)}`, title: `${callName(c)} ${outcomeBadge(c.outcome)} ${tierBadge(c.tier)}`, actions, extra: highlights })}
     ${qualified ? pathHtml(c) : ''}${banner}
     <div class="card"><div class="rtabs">${tabs.map(([k, l]) => `<button class="rtab ${S.rtab === k ? 'on' : ''}" data-act="rtab" data-t="${k}">${l}</button>`).join('')}</div><div class="card-b">${body}</div></div>`);
+}
+
+/* ---------- Chayya's test console: what the voice agent did on each call ---------- */
+const SCRIPT = [
+  ['English', 'Hello, I want to get my 3 BHK in Baner designed, design and execution. It is about 1450 square feet, new flat. We want to start in two months. My wife and I decide together and we will both attend. We saw you on Instagram. My name is Rohan Deshmukh and my number is 98765 43210.'],
+  ['Hindi', 'नमस्ते, मुझे पुणे में अपने 2 बीएचके का इंटीरियर करवाना है। फ्लैट वाकड में है, करीब 1000 स्क्वेयर फीट। हम तीन महीने में शुरू करना चाहते हैं।'],
+  ['Marathi', 'नमस्कार, मला पुण्यात माझ्या घराचे डिझाइन करायचे आहे. फ्लॅट हिंजवडीमध्ये आहे, साधारण बाराशे स्क्वेअर फूट. आम्हाला दोन महिन्यांत काम सुरू करायचे आहे.'],
+  ['Should decline', 'Hi, I need a full interior for my flat in Nashik. (Outside Pune and Pimpri Chinchwad: she should politely decline.)'],
+  ['Should escalate', 'I am an existing client and my designer has not replied for a week. I want to speak to someone senior. (She should take details and promise a callback.)'],
+];
+async function vConsole() {
+  const d = await api('chayya');
+  const all = S.showDemo === true;
+  const calls = d.calls.filter((c) => all || !c.is_demo);
+  const live = d.calls.filter((c) => !c.is_demo).length;
+  const step = (ok, label, off) => `<span class="b ${ok ? 'b-ok' : ''}">${ok ? '&#10003; ' : '&ndash; '}${esc(ok ? label : off || label)}</span>`;
+  const row = (c) => {
+    const tg = c.messages.some((m) => m.channel === 'telegram' && m.status === 'sent');
+    const wa = c.messages.some((m) => m.channel === 'whatsapp');
+    const q = c.outcome === 'qualified';
+    const steps = q
+      ? `${step(Boolean(c.designer), `Assigned to ${c.designer}`, 'No designer')}${step(Boolean(c.slot_start), `Booked ${when(c.slot_start)}`, 'No slot booked')}${step(tg, 'Telegram sent', 'Telegram not sent')}${step(wa, 'WhatsApp draft saved', 'No WhatsApp draft')}${step(c.has_deal, 'HubSpot deal', 'No HubSpot deal')}`
+      : '';
+    return `<div class="item click" data-act="open" data-id="${c.id}"><div class="grow"><div class="t">${callName(c)} ${c.is_demo ? badge('Demo data') : badge('Test call', 'b-info')}</div>
+      <div class="m">${esc(c.project_type || 'No project type')}${c.area ? ` · ${esc(c.area)}` : ''} · ${ago(c.created_at)}${c.duration_sec ? ` · ${Math.floor(c.duration_sec / 60)}m ${c.duration_sec % 60}s` : ''}</div>
+      ${q ? `<div class="steps">${steps}</div>` : `<div class="snip">${esc(c.decline_reason || c.summary || '')}</div>`}</div>
+      <div class="side">${outcomeBadge(c.outcome)}${tierBadge(c.tier)}</div></div>`;
+  };
+  render(`${pageHead({ icon: 'phone', color: '#0b827c', kicker: 'Voice agent console · testing login', title: 'Chayya, front desk', actions: refreshBtn })}
+    ${kpis([['Calls in 24 hours (not demo)', d.counts.total], ['Booked with a designer', d.counts.booked, 'good'], ['Declined', d.counts.declined], ['Escalated', d.counts.escalated, d.counts.escalated ? 'warn' : ''], ['Next designer in rotation', esc(d.next_designer || '-')]])}
+    <section class="card"><div class="card-h"><h2>Talk to Chayya</h2><span class="hint right">Runs on Vaani, results land here</span></div><div class="card-b">
+      <div class="banner info" style="margin-bottom:12px">${ic('doc')}<div class="grow">Vaani does not yet let a website embed the call widget (Deploy, Website shows <em>Coming soon</em>), so the call itself opens in Vaani. Everything she does during the call, the booking, Telegram, WhatsApp draft and HubSpot deal, shows up in the list below within seconds.</div></div>
+      <ol class="how"><li><a class="btn brand" href="${esc(d.agent.vaani_url)}" target="_blank" rel="noopener">${ic('phone')} Open the voice test in Vaani</a></li>
+        <li>Press <strong>Start Test</strong>, choose <strong>Audio</strong>, then <strong>Start Web (RTC) Call</strong>. Use headphones in a quiet room.</li>
+        <li>Say one of the lines below, or speak naturally. Answer her questions one at a time.</li>
+        <li>Come back to this page. The call appears under <strong>Calls handled</strong>, with what she did after it.</li></ol>
+      <div class="muted small" style="margin:8px 0 6px">Things to say</div>
+      ${SCRIPT.map(([l, t]) => `<div class="say"><span class="b b-info">${esc(l)}</span><span>${esc(t)}</span></div>`).join('')}
+    </div></section>
+    <section class="card"><div class="card-h"><h2>Calls handled</h2><span class="count ${calls.length ? '' : 'zero'}">${calls.length}</span>
+      <label class="hint right" style="cursor:pointer"><input type="checkbox" id="show-demo" ${all ? 'checked' : ''}> Include demo data</label></div>
+      ${calls.length ? calls.map(row).join('') : emptyState(live ? 'No calls yet.' : 'No test calls yet. Make one above and it will appear here.')}</section>
+    <section class="card"><div class="card-h"><h2>What she is connected to</h2></div><div class="card-b steps">
+      ${step(true, 'Aangan database and calendars')}${step(d.system.telegram, 'Telegram to designers', 'Telegram not set up')}${step(d.system.hubspot, 'HubSpot deals', 'HubSpot not set up')}${step(false, '', 'WhatsApp not connected: messages are saved as drafts')}
+      <div class="muted small" style="margin-top:10px">Transcripts and recordings of live calls stay in Vaani under Conversations, History until a Vaani API key is connected to this dashboard.</div></div></section>`);
+  const t = $('#show-demo');
+  if (t) t.onchange = () => { S.showDemo = t.checked; t.blur(); run(true); };
 }
 
 /* ---------- designer: my leads ---------- */

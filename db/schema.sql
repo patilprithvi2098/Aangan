@@ -67,7 +67,7 @@ create table if not exists users (
   id serial primary key,
   username text not null unique,
   name text not null,
-  role text not null check (role in ('frontdesk','designer')),
+  role text not null check (role in ('frontdesk','designer','chayya')),
   designer_id int references designers(id),
   password_hash text not null,
   must_change boolean not null default true,
@@ -172,3 +172,8 @@ create table if not exists files (
 );
 
 create index if not exists files_project_idx on files (project_id)
+
+;
+
+alter table users drop constraint if exists users_role_check;
+alter table users add constraint users_role_check check (role in ('frontdesk','designer','chayya'))

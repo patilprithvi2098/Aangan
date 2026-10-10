@@ -7,7 +7,7 @@ import { notifyBooking } from '../lib/handoff.js';
 //   reviewed - a declined call was read and the decline is right
 //   done     - an escalation or callback has been handled
 //   reverse  - the decline was wrong: book the caller with the next designer, marked hot
-export default route({ auth: 'user' }, async (req, res) => {
+export default route({ auth: 'user', roles: ['designer'] }, async (req, res) => {
   const { id, action } = req.body || {};
   const note = String(req.body?.note || '').trim().slice(0, 300);
   const db = getDb();

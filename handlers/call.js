@@ -3,8 +3,8 @@ import { getDb } from '../lib/db.js';
 
 // One call in full: details, summary, transcript, recording link and the status history.
 // A designer can open their own leads and the calls nobody owns (declined, escalated, missed). Another
-// designer's lead looks like it does not exist.
-export default route({ method: 'GET', auth: 'user' }, async (req, res) => {
+// designer's lead looks like it does not exist. Chayya's own login (the test console) can read every call.
+export default route({ method: 'GET', auth: 'user', roles: ['designer', 'chayya'] }, async (req, res) => {
   const db = getDb();
   const id = Number(req.query?.id);
   if (!Number.isInteger(id)) return res.status(400).json({ error: 'id must be a number' });
@@ -16,7 +16,8 @@ export default route({ method: 'GET', auth: 'user' }, async (req, res) => {
        from calls c left join designers d on d.id = c.designer_id where c.id = $1`,
     [id],
   ))[0];
-  if (!call || (call.designer_id !== null && call.designer_id !== req.user.designer_id)) return res.status(404).json({ error: 'not found' });
+  const frontDesk = req.user.role === 'chayya';
+  if (!call || (!frontDesk && call.designer_id !== null && call.designer_id !== req.user.designer_id)) return res.status(404).json({ error: 'not found' });
   const events = await db.query('select status, note, created_at from status_events where call_id = $1 order by created_at, id', [id]);
   const messages = await db.query('select id, channel, sender, to_name, to_address, body, status, note, created_at from messages where call_id = $1 order by created_at, id', [id]);
   const project = (await db.query('select id, name from projects where call_id = $1 and designer_id = $2', [id, req.user.designer_id]))[0] || null;

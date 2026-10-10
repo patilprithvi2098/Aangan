@@ -24,6 +24,7 @@ import projectUpdate from "../handlers/project-update.js";
 import eventAdd from "../handlers/event-add.js";
 import itemDelete from "../handlers/item-delete.js";
 import callUpdate from "../handlers/call-update.js";
+import chayya from "../handlers/chayya.js";
 import * as pages from "./pages";
 
 type Handler = (req: any, res: any) => Promise<unknown>;
@@ -91,5 +92,6 @@ app.post("/api/event-add", (c) => run(eventAdd, c));
 app.post("/api/item-delete", (c) => run(itemDelete, c));
 app.get("/api/my-leads", (c) => run(myLeads, c));
 app.post("/api/set-status", (c) => run(setStatus, c));
+app.get("/api/chayya", (c) => run(chayya, c));
 
 export default app;

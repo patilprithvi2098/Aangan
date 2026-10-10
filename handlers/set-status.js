@@ -5,7 +5,7 @@ import { moveDeal, STAGE_FOR_STATUS } from '../lib/hubspot.js';
 
 // Move a lead along: accepted, called, held, proposal, won, lost, not a fit. Same actions as the Telegram buttons.
 // A designer can change only their own leads.
-export default route({ auth: 'user' }, async (req, res) => {
+export default route({ auth: 'user', roles: ['designer'] }, async (req, res) => {
   const { id, status } = req.body || {};
   if (!Number.isInteger(id)) return res.status(400).json({ error: 'id must be a number' });
   if (!STAGE_FOR_STATUS[status] || status === 'new') return res.status(400).json({ error: 'unknown status' });

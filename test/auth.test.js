@@ -109,6 +109,21 @@ test('every designer sees the calls the bot could not finish, and can open them'
   assert.equal(open.body.call.caller_name, 'Cafe Owner');
 });
 
+test('Chayya\'s test login sees every call and the console, and nothing a designer edits', async () => {
+  const db = await testDb();
+  await request('log-call', { headers: AGENT, body: { call_id: 'c1', outcome: 'declined', decline_reason: 'restaurant', caller_name: 'Cafe Owner' } });
+  const chayya = await signedIn(db, 'chayya', 'chayya');
+  const con = await request('chayya', { method: 'GET', headers: chayya });
+  assert.equal(con.statusCode, 200);
+  assert.equal(con.body.calls.length, 1);
+  assert.equal(con.body.counts.declined, 1);
+  assert.ok(con.body.next_designer);
+  assert.equal((await request('call', { method: 'GET', headers: chayya, query: { id: con.body.calls[0].id } })).body.call.caller_name, 'Cafe Owner');
+  for (const name of ['my-leads', 'queue', 'calendar', 'projects']) assert.equal((await request(name, { method: 'GET', headers: chayya })).statusCode, 403, name);
+  assert.equal((await request('review', { headers: chayya, body: { id: 1, action: 'done' } })).statusCode, 403);
+  assert.equal((await request('chayya', { method: 'GET', headers: await signedIn(db, 'riya') })).statusCode, 403, 'designers cannot open the console');
+});
+
 test('the calendar shows a designer only their own bookings in detail', async () => {
   const db = await testDb();
   await book('1', 'First');
@@ -163,9 +178,10 @@ test('an expired session is refused', async () => {
 test('ensureUsers makes a login for every designer, once, with one-time passwords that must be changed', async () => {
   const db = await testDb();
   const created = await ensureUsers(db);
-  assert.equal(created.length, 14);
-  assert.equal(created.every((u) => u.role === 'designer'), true);
-  assert.equal(new Set(created.map((u) => u.password)).size, 14);
+  assert.equal(created.length, 15);
+  assert.equal(created.filter((u) => u.role === 'designer').length, 14);
+  assert.equal(created.filter((u) => u.role === 'chayya').length, 1);
+  assert.equal(new Set(created.map((u) => u.password)).size, 15);
   assert.equal((await ensureUsers(db)).length, 0);
   const row = (await db.query("select must_change, password_hash from users where username = 'aryan'"))[0];
   assert.equal(row.must_change, true);
