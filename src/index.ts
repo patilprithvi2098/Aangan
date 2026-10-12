@@ -25,6 +25,7 @@ import eventAdd from "../handlers/event-add.js";
 import itemDelete from "../handlers/item-delete.js";
 import callUpdate from "../handlers/call-update.js";
 import chayya from "../handlers/chayya.js";
+import chayyaSession from "../handlers/chayya-session.js";
 import vaaniWebhook from "../handlers/vaani-webhook.js";
 import * as pages from "./pages";
 
@@ -95,5 +96,6 @@ app.post("/api/item-delete", (c) => run(itemDelete, c));
 app.get("/api/my-leads", (c) => run(myLeads, c));
 app.post("/api/set-status", (c) => run(setStatus, c));
 app.get("/api/chayya", (c) => run(chayya, c));
+app.post("/api/chayya-session", (c) => run(chayyaSession, c));
 
 export default app;

@@ -231,7 +231,7 @@ async function badges() {
 function startTimer() {
   stopTimer();
   S.timer = setInterval(() => {
-    if (document.hidden || $('.overlay') || /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || '')) return;
+    if (document.hidden || S.live || $('.overlay') || /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || '')) return;
     run(true); badges();
   }, S.me.role === 'chayya' ? 5000 : 20000);
 }
@@ -372,11 +372,10 @@ async function vConsole() {
   render(`${pageHead({ icon: 'phone', color: '#0b827c', kicker: 'Voice agent console · testing login', title: 'Chayya, front desk', actions: refreshBtn })}
     ${kpis([['Calls in 24 hours (not demo)', d.counts.total], ['Booked with a designer', d.counts.booked, 'good'], ['Declined', d.counts.declined], ['Escalated', d.counts.escalated, d.counts.escalated ? 'warn' : ''], ['Next designer in rotation', esc(d.next_designer || '-')]])}
     <section class="card"><div class="card-h"><h2>Talk to Chayya</h2><span class="hint right">Runs on Vaani, results land here</span></div><div class="card-b">
-      <div class="banner info" style="margin-bottom:12px">${ic('doc')}<div class="grow">Vaani does not yet let a website embed the call widget (Deploy, Website shows <em>Coming soon</em>), so the call itself opens in Vaani. Everything she does during the call, the booking, Telegram, WhatsApp draft and HubSpot deal, shows up in the list below within seconds.</div></div>
-      <ol class="how"><li><a class="btn brand" href="${esc(d.agent.vaani_url)}" target="_blank" rel="noopener">${ic('phone')} Open the voice test in Vaani</a></li>
-        <li>Press <strong>Start Test</strong>, choose <strong>Audio</strong>, then <strong>Start Web (RTC) Call</strong>. Use headphones in a quiet room.</li>
-        <li>Say one of the lines below, or speak naturally. Answer her questions one at a time.</li>
-        <li>Come back to this page. The call appears under <strong>Calls handled</strong>, with what she did after it.</li></ol>
+      <div class="banner info" style="margin-bottom:12px">${ic('doc')}<div class="grow">The call runs inside this page through Vaani's session API. Everything she does during the call, the booking, Telegram, WhatsApp draft and HubSpot deal, shows up in the list below within seconds.</div></div>
+      <div class="callrow"><button class="btn brand" data-act="call-start" id="call-start">${ic('phone')} Call Chayya from this page</button>
+        <a class="btn" href="${esc(d.agent.vaani_url)}" target="_blank" rel="noopener">Or open the test in Vaani</a>
+        <span class="muted small">Allow the microphone when the browser asks. Use headphones in a quiet room, say one of the lines below or speak naturally. The call then appears under <strong>Calls handled</strong>.</span></div>
       <div class="muted small" style="margin:8px 0 6px">Things to say</div>
       ${SCRIPT.map(([l, t]) => `<div class="say"><span class="b b-info">${esc(l)}</span><span>${esc(t)}</span></div>`).join('')}
     </div></section>
@@ -385,9 +384,62 @@ async function vConsole() {
       ${calls.length ? calls.map(row).join('') : emptyState(live ? 'No calls yet.' : 'No test calls yet. Make one above and it will appear here.')}</section>
     <section class="card"><div class="card-h"><h2>What she is connected to</h2></div><div class="card-b steps">
       ${step(true, 'Aangan database and calendars')}${step(d.system.telegram, 'Telegram to designers', 'Telegram not set up')}${step(d.system.hubspot, 'HubSpot deals', 'HubSpot not set up')}${step(false, '', 'WhatsApp not connected: messages are saved as drafts')}
-      <div class="muted small" style="margin-top:10px">Transcripts and recordings of live calls stay in Vaani under Conversations, History until a Vaani API key is connected to this dashboard.</div></div></section>`);
+      <div class="muted small" style="margin-top:10px">After each call Vaani sends the transcript and recording here; they appear on the call within a minute. The full history is also in Vaani under Conversations, History.</div></div></section>`);
   const t = $('#show-demo');
   if (t) t.onchange = () => { S.showDemo = t.checked; t.blur(); run(true); };
+}
+
+
+/* ---------- the call with Chayya (Chayya's test login): joins Vaani's LiveKit room with the microphone ---------- */
+const LIVEKIT = 'https://cdn.jsdelivr.net/npm/livekit-client@2.5.0/dist/livekit-client.umd.min.js';
+function loadLiveKit() {
+  if (window.LivekitClient) return Promise.resolve();
+  return new Promise((ok, fail) => {
+    const s = document.createElement('script');
+    s.src = LIVEKIT; s.onload = ok; s.onerror = () => fail(new Error('Could not load the call library. Check your connection.'));
+    document.head.appendChild(s);
+  });
+}
+function callPanel(state, text = '') {
+  let el = $('#call-panel');
+  if (!state) { if (el) el.remove(); return; }
+  if (!el) { el = document.createElement('div'); el.id = 'call-panel'; el.className = 'call-panel'; document.body.appendChild(el); }
+  el.innerHTML = `<div class="cp-h"><span class="dot ${state === 'live' ? 'on' : ''}"></span><strong>Chayya</strong><span class="muted small" id="cp-t">${esc(text)}</span></div>
+    <div class="cp-b">${state === 'live' ? `<button class="btn" data-act="call-mute" id="cp-mute">Mute</button>` : ''}<button class="btn danger" data-act="call-end">${state === 'live' ? 'End call' : 'Cancel'}</button></div>`;
+}
+async function endCall(message) {
+  const c = S.live; S.live = null;
+  clearInterval(c?.tick);
+  try { c?.room?.disconnect(); } catch (e) { /* already gone */ }
+  c?.audio?.forEach((a) => a.remove());
+  if (c?.token) api('chayya-session', { action: 'end', session_token: c.token }, { quiet: true }).catch(() => {});
+  callPanel(null);
+  const b = $('#call-start'); if (b) b.disabled = false;
+  if (message) toast(message, message.startsWith('Could') ? 'err' : undefined);
+  setTimeout(() => run(true), 4000);
+}
+async function startCall(btn) {
+  if (S.live) return;
+  S.live = { audio: [] };
+  btn.disabled = true;
+  callPanel('connecting', 'Connecting…');
+  try {
+    const [, s] = await Promise.all([loadLiveKit(), api('chayya-session', { action: 'start' })]);
+    const { Room, RoomEvent, Track } = window.LivekitClient;
+    const room = new Room({ adaptiveStream: false, dynacast: false });
+    S.live.room = room; S.live.token = s.session_token;
+    room.on(RoomEvent.TrackSubscribed, (track) => { if (track.kind === Track.Kind.Audio) { const a = track.attach(); a.autoplay = true; document.body.appendChild(a); S.live.audio.push(a); } });
+    room.on(RoomEvent.Disconnected, () => { if (S.live) endCall('The call ended.'); });
+    await room.connect(s.lk_url, s.lk_token);
+    await room.localParticipant.setMicrophoneEnabled(true);
+    await room.startAudio();
+    const t0 = Date.now();
+    callPanel('live', '0:00');
+    S.live.tick = setInterval(() => { const sec = Math.floor((Date.now() - t0) / 1000); const t = $('#cp-t'); if (t) t.textContent = `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`; }, 1000);
+  } catch (e) {
+    const denied = /permission|denied|notallowed/i.test(String(e.message || e.name));
+    await endCall(denied ? 'Could not use the microphone. Allow it in the browser address bar and try again.' : `Could not start the call. ${e.message || ''}`.trim());
+  }
 }
 
 /* ---------- designer: my leads ---------- */
@@ -657,8 +709,11 @@ const ACTIONS = {
       : d.photos.map((g) => ({ src: g.image_path, caption: g.caption, meta: g.taken_on ? day(Date.parse(g.taken_on)) : '' }));
     lightbox(items, Number(el.dataset.i));
   },
+  'call-start': (el) => startCall(el),
+  'call-end': () => endCall('Call ended.'),
+  'call-mute': async (el) => { const room = S.live?.room; if (!room) return; const on = room.localParticipant.isMicrophoneEnabled; await room.localParticipant.setMicrophoneEnabled(!on); el.textContent = on ? 'Unmute' : 'Mute'; },
   refresh: () => run(true).then(() => { const u = $('#updated'); if (u) u.textContent = 'Updated just now'; }),
-  logout: async () => { await api('logout', {}, { quiet: true }).catch(() => {}); S.me = null; showLogin(); },
+  logout: async () => { if (S.live) await endCall(); await api('logout', {}, { quiet: true }).catch(() => {}); S.me = null; showLogin(); },
   chpw: () => {
     $('#menu').classList.add('hide');
     modal({ title: 'Change password', body: passwordFields(false), confirm: 'Save password', onConfirm: async (m) => { const ok = await submitPassword(m); if (ok) toast('Password changed.'); return ok; } });

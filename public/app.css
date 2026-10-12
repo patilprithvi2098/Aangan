@@ -219,3 +219,9 @@ audio{width:100%;max-width:560px}
 .how{margin:0 0 4px;padding-left:20px;display:grid;gap:8px}
 .say{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--line);font-size:14px}
 .say .b{flex:none;margin-top:1px}
+
+.callrow{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.call-panel{position:fixed;right:16px;bottom:16px;z-index:50;background:#fff;border:1px solid var(--line2);border-radius:12px;box-shadow:0 6px 24px rgba(0,0,0,.18);padding:12px 14px;display:grid;gap:10px;min-width:220px}
+.call-panel .cp-h{display:flex;gap:8px;align-items:center}.call-panel .cp-b{display:flex;gap:8px}
+.call-panel .dot{width:10px;height:10px;border-radius:50%;background:#c9c9c9}.call-panel .dot.on{background:#2e844a;box-shadow:0 0 0 4px rgba(46,132,74,.2)}
+@media(max-width:600px){.call-panel{left:16px;right:16px}}

@@ -10,6 +10,7 @@ export default defineConfig({
         TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN!,
         TELEGRAM_WEBHOOK_SECRET: process.env.TELEGRAM_WEBHOOK_SECRET!,
         HUBSPOT_TOKEN: process.env.HUBSPOT_TOKEN!,
+        VAANI_API_KEY: process.env.VAANI_API_KEY!,
         VAANI_WEBHOOK_SECRET: process.env.VAANI_WEBHOOK_SECRET!,
       },
     },

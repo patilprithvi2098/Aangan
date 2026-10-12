@@ -248,3 +248,15 @@ test('without a Telegram token the escalation is still logged and the alert is s
   assert.equal(r.body.logged, true);
   assert.equal(r.body.alert.skipped, true);
 });
+
+test('only the Chayya login can start a browser call, and it needs the Vaani key', async () => {
+  const db = await testDb();
+  const saved = process.env.VAANI_API_KEY;
+  delete process.env.VAANI_API_KEY;
+  assert.equal((await request('chayya-session', { headers: await signedIn(db, 'riya'), body: { action: 'start' } })).statusCode, 403);
+  const chayya = await signedIn(db, 'chayya', 'chayya');
+  assert.equal((await request('chayya-session', { headers: chayya, body: { action: 'start' } })).statusCode, 503);
+  assert.equal((await request('chayya-session', { headers: { 'content-type': 'application/json' }, body: {} })).statusCode, 401);
+  assert.equal((await request('chayya-session', { headers: { 'content-type': 'text/plain' }, body: {} })).statusCode, 415);
+  if (saved) process.env.VAANI_API_KEY = saved;
+});
