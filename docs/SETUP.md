@@ -1,3 +1,35 @@
+# Current status (12 Oct 2026)
+
+- **Chayya console** (login `chayya`, same demo password as everyone): the voice agent's own test login on the dashboard.
+  Shows the last 24 hours of calls with what she did after each (designer assigned, slot booked, Telegram, WhatsApp draft, HubSpot deal),
+  the next designer in rotation, and a script of things to say (English, Hindi, Marathi, a decline, an escalation).
+  It cannot open leads, projects or calendars. Designers cannot open it.
+- **Call Chayya from the page.** The button starts a browser call through Vaani's session API (`POST /api/chayya-session`, Chayya login only).
+  Vaani's hosted call page cannot be embedded (it sends `X-Frame-Options: SAMEORIGIN`), so the page asks the server for a session, then joins
+  the LiveKit room with the microphone using `livekit-client` from jsDelivr. Mic access is needed; headphones avoid echo.
+- **Transcripts and recordings arrive on their own.** Vaani's `call_postprocessing` webhook posts to
+  `https://aangan-gold.vercel.app/api/vaani-webhook?s=<VAANI_WEBHOOK_SECRET>` (registered in Vaani, Developers, Webhooks). The handler attaches
+  transcript, recording link and length to the call, matching on call id and otherwise on the newest live call without a transcript in the
+  last 45 minutes. It never changes the outcome or the agent's summary. Vaani does not sign webhooks, so the secret in the URL is the only guard.
+- **Vaani API key** `aangan-dashboard` (Developers, API Keys), kept in `.env` as `VAANI_API_KEY` and in the Neon function. It expires about
+  12 Nov 2026: create a new key in Vaani, update `.env`, run `neon deploy --env .env`. Vaani's `GET /api/call-history` currently answers
+  "Invalid client_id format" for this account, so nothing relies on it.
+- Roles: `designer` (14 logins) and `chayya` (1). Every designer-only endpoint declares `roles: ['designer']`.
+- Env on the Neon function: `AGENT_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `HUBSPOT_TOKEN`, `VAANI_API_KEY`, `VAANI_WEBHOOK_SECRET`.
+- Vaani agent now: Hindi main language with English fallback, Sarvam saaras:v3 speech recognition (Hindi, Marathi, English), gpt-4o with a Groq
+  fallback, Cartesia female voice, prompt starts in English and follows the caller into Hindi or Marathi only on a clear full sentence.
+- Rebuild from scratch: `docs/replication-prompt.md`.
+
+## Known gaps
+- Not heard yet: a full live call in the new setup. Check the three tools (area check, booking, call log) fire, Hindi and Marathi are understood,
+  and the transcript lands via the webhook.
+- No phone number for inbound calls (Vaani, Telephony; a paid decision). Only the browser test call works.
+- WhatsApp is not connected: customer messages are saved as drafts marked not sent.
+- All 14 designers share one Telegram chat id. Give each designer their own (`designers.telegram_chat_id`) before real use.
+- HubSpot deals are not assigned to a designer as owner (needs another key scope).
+- Every login uses the demo password `1234567890`. Change them before real caller data goes in (`npm run users reset <username>`).
+- Housekeeping: rotate the Neon database password and the Telegram bot token, revoke the unused Neon API key, delete the unused Supabase project.
+
 # Current status (10 Oct 2026, later)
 
 - **Chayya** is the studio's front desk: the voice agent on the phone, and the sender of every message after a call (Telegram to the

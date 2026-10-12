@@ -20,6 +20,10 @@ uploaded by a designer, or written by the system. Nothing is typed in by hand be
 Files are checked by their contents, not their label (JPG, PNG, WebP, and PDF for designs only). SVG is refused because it can carry scripts.
 Maximum 2.5 MB each. Only the designer who owns the project can see or change its files.
 
+## Transcripts and recordings
+Vaani sends a `call_postprocessing` message to `/api/vaani-webhook` when a call has been processed. The dashboard attaches the transcript,
+recording link and call length to the matching call (see `docs/SETUP.md`). Until then the call page links to Vaani, Conversations, History.
+
 ## The demo data
 So the screens are not empty before real work arrives, the database holds dummy data: 44 ongoing projects across the 14 designers
 (Aryan has five at every stage), 30 open leads, 11 calls the agent could not book, each designer's calendar, transcripts, designs,
