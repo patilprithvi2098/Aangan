@@ -106,3 +106,25 @@ test('after a booking, Chayya saves the message to the designer and a confirmati
   assert.match(rows[1].body, /Your designer Aryan will call you on /);
   assert.equal(rows[1].status, 'not_sent');
 });
+
+test('Vaani webhook: needs its secret, attaches transcript and recording to the matching call', async () => {
+  const db = await testDb();
+  process.env.VAANI_WEBHOOK_SECRET = 'hook-secret';
+  const AGENT = { 'x-api-key': 'test-key' };
+  await request('log-call', { headers: AGENT, body: { call_id: 'w1', outcome: 'declined', decline_reason: 'restaurant', caller_name: 'Cafe Owner' } });
+  const event = { event: 'call_postprocessing', call_id: 'w1', data: { transcript: '[00:01] agent: Namaste\n[00:03] user: Hello', recording_url: 'https://example.com/r.mp3', call_duration: 61000, summary: 'ignored' } };
+  assert.equal((await request('vaani-webhook', { body: event })).statusCode, 401);
+  assert.equal((await request('vaani-webhook', { body: event, query: { s: 'wrong' } })).statusCode, 401);
+  const ok = await request('vaani-webhook', { body: event, query: { s: 'hook-secret' } });
+  assert.deepEqual([ok.body.matched, ok.body.how], [true, 'call id']);
+  const row = (await db.query("select transcript, recording_url, duration_sec from calls where call_id = 'w1'"))[0];
+  assert.equal(row.transcript, 'Agent: Namaste\nCaller: Hello');
+  assert.equal(row.recording_url, 'https://example.com/r.mp3');
+  assert.equal(row.duration_sec, 61);
+  // an unknown id falls back to the newest live call without a transcript
+  await request('log-call', { headers: AGENT, body: { call_id: 'w2', outcome: 'missed' } });
+  const web = await request('vaani-webhook', { body: { ...event, call_id: 'room-xyz', data: { ...event.data, recording_url: 'http://insecure' } }, query: { s: 'hook-secret' } });
+  assert.deepEqual([web.body.matched, web.body.how], [true, 'time window']);
+  assert.equal((await db.query("select recording_url from calls where call_id = 'w2'"))[0].recording_url, null, 'non-https recording links are dropped');
+  assert.equal((await request('vaani-webhook', { body: { event: 'call_started' }, query: { s: 'hook-secret' } })).body.ignored, 'call_started');
+});

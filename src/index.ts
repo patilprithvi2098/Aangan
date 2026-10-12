@@ -25,6 +25,7 @@ import eventAdd from "../handlers/event-add.js";
 import itemDelete from "../handlers/item-delete.js";
 import callUpdate from "../handlers/call-update.js";
 import chayya from "../handlers/chayya.js";
+import vaaniWebhook from "../handlers/vaani-webhook.js";
 import * as pages from "./pages";
 
 type Handler = (req: any, res: any) => Promise<unknown>;
@@ -72,6 +73,7 @@ app.post("/api/book", (c) => run(book, c));
 app.post("/api/log-call", (c) => run(logCall, c));
 app.post("/api/call-update", (c) => run(callUpdate, c));
 app.post("/api/telegram", (c) => run(telegram, c));
+app.post("/api/vaani-webhook", (c) => run(vaaniWebhook, c));
 // The people (session login)
 app.post("/api/login", (c) => run(login, c));
 app.post("/api/logout", (c) => run(logout, c));
